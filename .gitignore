@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Environment variables
+.env
+backend/.env
+frontend/.env
+contracts/.env
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+
+# Build output
+dist/
+frontend/dist/
+
+# Deployment
+deployed-addresses.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Sensitive files - DO NOT commit
+backend/data/

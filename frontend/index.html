@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WireTrust | AI Agents for Fan Economy</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    // Polyfill globals for Web3Auth dependencies (must run before module scripts)
+    if (typeof globalThis.global === 'undefined') globalThis.global = globalThis;
+    if (typeof globalThis.process === 'undefined') globalThis.process = { env: {}, version: '' };
+    if (!globalThis.process.nextTick) {
+      globalThis.process.nextTick = function(fn) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        Promise.resolve().then(function() { fn.apply(null, args); });
+      };
+    }
+    if (!globalThis.process.env) globalThis.process.env = {};
+  </script>
+</head>
+<body class="bg-dark-bg text-white font-sans antialiased">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
