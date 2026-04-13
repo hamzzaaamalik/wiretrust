@@ -15,6 +15,9 @@
 
 const { analyzeMatch } = require("../cricketIntelligence");
 
+// Maximum confidence cap — normalized across all prediction types
+const MAX_CONFIDENCE = 85;
+
 // ─── Fallback helpers (no DB) ────────────────────────────────────────────────
 
 function teamStrength(players, teamName) {
@@ -92,11 +95,11 @@ async function analyzePredictions(upcomingMatches, existingPredictions, options 
             if (intel.topScorer) {
               const ts = intel.topScorer;
               outcome = playerToOutcome(ts.name);
-              confidence = Math.min(80, Math.round(45 + ts.ewma * 0.2 + (ts.consistency || 0) * 0.1));
+              confidence = Math.min(MAX_CONFIDENCE, Math.round(45 + ts.ewma * 0.2 + (ts.consistency || 0) * 0.1));
 
               // Boost from player-vs-team matchup
               if (ts.matchup && ts.matchup.matches >= 2) {
-                if (ts.matchup.avgFP > ts.ewma) confidence = Math.min(82, confidence + 5);
+                if (ts.matchup.avgFP > ts.ewma) confidence = Math.min(MAX_CONFIDENCE, confidence + 5);
               }
 
               const loser = ts.team === match.team1 ? match.team2 : match.team1;
@@ -119,7 +122,7 @@ async function analyzePredictions(upcomingMatches, existingPredictions, options 
             const predictedScore = venueAvg * 0.35 + combinedForm * 0.35 + roleBat * 0.30;
 
             if (predictedScore > 170) {
-              outcome = "OVER_180"; confidence = Math.min(78, Math.round(55 + (predictedScore - 170) * 0.5));
+              outcome = "OVER_180"; confidence = Math.min(MAX_CONFIDENCE, Math.round(55 + (predictedScore - 170) * 0.5));
             } else if (predictedScore > 145) {
               outcome = "OVER_150"; confidence = 62;
             } else {
@@ -163,11 +166,11 @@ async function analyzePredictions(upcomingMatches, existingPredictions, options 
         const diff = t1.total - t2.total;
         if (diff > 5) {
           outcome = match.team1.toUpperCase().replace(/\s+/g, "_") + "_WIN";
-          confidence = Math.min(85, 60 + Math.abs(diff) * 2);
+          confidence = Math.min(MAX_CONFIDENCE, 60 + Math.abs(diff) * 2);
           reasoning = `${match.team1} stronger roster (${t1.total.toFixed(1)} vs ${t2.total.toFixed(1)} credits). Fallback mode - no historical intelligence available.`;
         } else if (diff < -5) {
           outcome = match.team2.toUpperCase().replace(/\s+/g, "_") + "_WIN";
-          confidence = Math.min(85, 60 + Math.abs(diff) * 2);
+          confidence = Math.min(MAX_CONFIDENCE, 60 + Math.abs(diff) * 2);
           reasoning = `${match.team2} stronger roster. Fallback mode.`;
         } else {
           outcome = match.team1.toUpperCase().replace(/\s+/g, "_") + "_WIN";

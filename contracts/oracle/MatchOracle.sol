@@ -58,6 +58,8 @@ contract MatchOracle is IMatchOracle, Ownable {
         string calldata team2,
         uint256 startTime
     ) external onlyOwner returns (uint256) {
+        if (startTime > 0 && startTime <= block.timestamp) revert InvalidMatch();
+
         uint256 id;
         unchecked {
             id = ++matchCount;

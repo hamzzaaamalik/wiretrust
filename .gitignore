@@ -37,3 +37,8 @@ Thumbs.db
 
 # Sensitive files - DO NOT commit
 backend/data/
+*.pdf
+*.pptx
+
+# Claude Code sessions
+.claude/

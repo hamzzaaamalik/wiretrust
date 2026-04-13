@@ -34,7 +34,8 @@ router.get("/leaderboard", async (req, res) => {
 
     agents.sort((a, b) => b.score - a.score);
     const limit = Number(req.query.limit) || 10;
-    res.json(agents.slice(0, limit));
+    const offset = Number(req.query.offset) || 0;
+    res.json({ agents: agents.slice(offset, offset + limit), total: agents.length });
   } catch (err) {
     console.error("Get leaderboard failed:", err.message);
     res.status(500).json({ error: "Failed to get leaderboard", details: err.message });
@@ -72,7 +73,7 @@ router.get("/logs/:agentId", async (req, res) => {
           const decoded = executeIface.parseTransaction({ data: tx.data });
           target = decoded?.args?.target || null;
         }
-      } catch {}
+      } catch (err) { /* skip agents that fail to load */ }
       events.push({
         type: 'execution',
         action: decodeAction(log.args.action),

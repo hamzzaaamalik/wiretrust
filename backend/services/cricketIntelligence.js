@@ -81,13 +81,8 @@ async function calculateTeamElos(db) {
 function calculateEWMA(points) {
   if (!points.length) return { ewma: 0, trend: 'unknown', consistency: 0, peakForm: 0, recentAvg: 0 };
 
-  // EWMA calculation: weight_i = (1-α)^i, newest = highest weight
-  let ewma = points[0];
-  for (let i = 1; i < points.length; i++) {
-    ewma = FORM_DECAY * points[i] + (1 - FORM_DECAY) * ewma;
-  }
-  // Reverse: we want recent weighted more, so recalculate properly
-  ewma = 0;
+  // EWMA calculation: weight_i = (1-α)^i, newest (i=0) gets highest weight
+  let ewma = 0;
   let weightSum = 0;
   for (let i = 0; i < points.length; i++) {
     const weight = Math.pow(1 - FORM_DECAY, i); // i=0 (newest) gets weight 1.0

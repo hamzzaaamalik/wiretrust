@@ -18,12 +18,31 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
+const { strictLimiter, moderateLimiter, relaxedLimiter } = require("./middleware/rateLimiter");
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(helmet());
-app.use(cors());
+
+// CORS — restrict to known frontend origins (configurable via CORS_ORIGINS env)
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+
 app.use(express.json());
+
+// CSRF protection — require X-Requested-With header on all mutation requests.
+// Browsers block cross-origin custom headers by default, preventing CSRF attacks.
+app.use((req, res, next) => {
+  if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) {
+    if (!req.headers["x-requested-with"]) {
+      return res.status(403).json({ error: "Missing X-Requested-With header" });
+    }
+  }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Blockchain setup
@@ -60,6 +79,8 @@ const abis = {
   WireTrustNFT: loadABI("modules/WireTrustNFT.sol/WireTrustNFT.json"),
 };
 
+// TESTNET ONLY: Private key read from env for WireFluid testnet deployer.
+// In production, use a hardware wallet, KMS, or vault-based signer.
 let signer = null;
 if (process.env.PRIVATE_KEY) {
   signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
@@ -95,18 +116,18 @@ app.locals.db = db;
 // Routes
 // ---------------------------------------------------------------------------
 
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/franchise", require("./routes/franchise"));
-app.use("/api/agents", require("./routes/agents"));
-app.use("/api/agents/auto", require("./routes/agentAuto"));
-app.use("/api/fantasy", require("./routes/fantasy"));
-app.use("/api/predictions", require("./routes/predictions"));
-app.use("/api/nfts", require("./routes/nfts"));
-app.use("/api/challenges", require("./routes/challenges"));
-app.use("/api/matches", require("./routes/matches"));
-app.use("/api/health", require("./routes/health"));
-app.use("/api/admin", require("./routes/admin"));
-app.use("/api/franchise-portal", require("./routes/franchise-portal"));
+app.use("/api/auth", strictLimiter, require("./routes/auth"));
+app.use("/api/franchise", relaxedLimiter, require("./routes/franchise"));
+app.use("/api/agents", relaxedLimiter, require("./routes/agents"));
+app.use("/api/agents/auto", moderateLimiter, require("./routes/agentAuto"));
+app.use("/api/fantasy", moderateLimiter, require("./routes/fantasy"));
+app.use("/api/predictions", moderateLimiter, require("./routes/predictions"));
+app.use("/api/nfts", moderateLimiter, require("./routes/nfts"));
+app.use("/api/challenges", moderateLimiter, require("./routes/challenges"));
+app.use("/api/matches", relaxedLimiter, require("./routes/matches"));
+app.use("/api/health", relaxedLimiter, require("./routes/health"));
+app.use("/api/admin", moderateLimiter, require("./routes/admin"));
+app.use("/api/franchise-portal", relaxedLimiter, require("./routes/franchise-portal"));
 
 // ---------------------------------------------------------------------------
 // HTTP + WebSocket server
@@ -138,6 +159,7 @@ function broadcast(event, data) {
 
 const { setupWSRelay } = require("./services/wsRelay");
 const matchSync = require("./services/matchSync");
+const agentRunner = require("./services/agentRunner");
 // Set up event relay after contracts are initialized
 if (addresses && Object.keys(contracts).length > 0) {
   setupWSRelay(wss, provider, addresses, abis);
@@ -181,6 +203,11 @@ server.listen(PORT, async () => {
   } else {
     console.log("  SPORTMONKS_KEY not set — match sync disabled");
   }
+
+  // Resume previously running agents from DB
+  agentRunner.resumeAgents(contracts, addresses, db).catch((err) =>
+    console.warn("[startup] Agent resume failed:", err.message)
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -73,7 +73,7 @@ router.get("/leaderboard", async (req, res) => {
             ? Math.round((Number(stats.totalCorrect ?? stats[1]) / Number(stats.totalPredictions ?? stats[2])) * 100)
             : 0,
         });
-      } catch {}
+      } catch (err) { /* skip users that fail to load */ }
     }
 
     // Sort by total points descending

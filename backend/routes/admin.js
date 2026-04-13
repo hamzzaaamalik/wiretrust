@@ -349,6 +349,17 @@ router.post('/oracle/submit-result', async (req, res) => {
       return res.status(400).json({ error: 'match_id and winner required' });
     }
 
+    // Validate winner against known teams for this match
+    const { rows: matchRows } = await db.query(
+      'SELECT team1, team2 FROM matches WHERE match_id = $1', [match_id]
+    );
+    if (matchRows.length > 0) {
+      const validTeams = [matchRows[0].team1.toLowerCase(), matchRows[0].team2.toLowerCase()];
+      if (!validTeams.includes(winner.toLowerCase())) {
+        return res.status(400).json({ error: `winner must be one of: ${matchRows[0].team1}, ${matchRows[0].team2}` });
+      }
+    }
+
     const tx = await contracts.matchOracle.submitResult(match_id, winner, abandoned || false);
     const receipt = await tx.wait();
 
@@ -430,16 +441,16 @@ router.get('/treasury', async (req, res) => {
           let fBal = '0';
           try {
             fBal = ethers.formatEther(await provider.getBalance(f.treasuryWallet));
-          } catch {}
+          } catch (err) { console.warn('[admin]', err.message); }
           franchises.push({
             franchiseId: Number(f.franchiseId),
             name: f.name,
             treasuryWallet: f.treasuryWallet,
             balance: fBal,
           });
-        } catch {}
+        } catch (err) { console.warn('[admin]', err.message); }
       }
-    } catch {}
+    } catch (err) { console.warn('[admin]', err.message); }
 
     // Get signer balance (deployer/operator)
     const signer = req.app.locals.signer;
@@ -448,7 +459,7 @@ router.get('/treasury', async (req, res) => {
       if (signer) {
         signerBalance = ethers.formatEther(await provider.getBalance(signer.address));
       }
-    } catch {}
+    } catch (err) { console.warn('[admin]', err.message); }
 
     // Count on-chain activity for revenue estimation
     const [agentCount, predCount, nftCount, contestCount] = await Promise.all([
@@ -498,7 +509,7 @@ router.post('/contests/create', async (req, res) => {
     let contestId = null;
     const iface = contracts.fantasyModule.interface;
     for (const log of receipt.logs) {
-      try { const p = iface.parseLog(log); if (p?.name === 'ContestCreated') contestId = p.args.contestId?.toString(); } catch {}
+      try { const p = iface.parseLog(log); if (p?.name === 'ContestCreated') contestId = p.args.contestId?.toString(); } catch (err) { console.warn('[admin]', err.message); }
     }
 
     res.json({ success: true, contestId, txHash: receipt.hash });
@@ -556,7 +567,7 @@ router.post('/predictions/resolve-match', async (req, res) => {
     const { ethers } = require('ethers');
     const typeBytes = ethers.encodeBytes32String(prediction_type);
     const outcomeBytes = ethers.encodeBytes32String(actual_outcome);
-    const tx = await contracts.predictionModule.resolveMatchPredictions(match_id, typeBytes, outcomeBytes);
+    const tx = await contracts.predictionModule.resolveAllMatchPredictions(match_id, typeBytes, outcomeBytes);
     const receipt = await tx.wait();
 
     res.json({ success: true, txHash: receipt.hash });
@@ -644,6 +655,19 @@ router.post('/settle-match/:matchId', async (req, res) => {
       return res.status(400).json({ error: 'winner or abandoned flag required' });
     }
 
+    // Validate winner against known teams for this match
+    if (winner) {
+      const { rows: matchRows } = await db.query(
+        'SELECT team1, team2 FROM matches WHERE match_id = $1', [matchId]
+      );
+      if (matchRows.length > 0) {
+        const validTeams = [matchRows[0].team1.toLowerCase(), matchRows[0].team2.toLowerCase()];
+        if (!validTeams.includes(winner.toLowerCase())) {
+          return res.status(400).json({ error: `winner must be one of: ${matchRows[0].team1}, ${matchRows[0].team2}` });
+        }
+      }
+    }
+
     const steps = [];
 
     // Step 1: Submit result to oracle
@@ -671,7 +695,7 @@ router.post('/settle-match/:matchId', async (req, res) => {
             matchId, mp.player_id, 0, 0, 0, 0, false
           );
           await tx.wait();
-        } catch {}
+        } catch (err) { console.warn('[admin]', err.message); }
       }
       steps.push({ step: 'submit_player_stats', success: true, count: mpRows.length });
     } catch (err) {
@@ -693,7 +717,7 @@ router.post('/settle-match/:matchId', async (req, res) => {
         const winnerOutcome = winner.toUpperCase().replace(/\s+/g, '_') + '_WIN';
         const typeBytes = ethers.encodeBytes32String('MATCH_WINNER');
         const outcomeBytes = ethers.encodeBytes32String(winnerOutcome);
-        const tx = await contracts.predictionModule.resolveMatchPredictions(matchId, typeBytes, outcomeBytes);
+        const tx = await contracts.predictionModule.resolveAllMatchPredictions(matchId, typeBytes, outcomeBytes);
         const receipt = await tx.wait();
         steps.push({ step: 'resolve_match_winner', success: true, txHash: receipt.hash, outcome: winnerOutcome });
       } catch (err) {
@@ -713,14 +737,14 @@ router.post('/settle-match/:matchId', async (req, res) => {
       try {
         const contest = await contracts.fantasyModule.contests(matchId);
         if (contest && contest.active) contestId = matchId;
-      } catch {}
+      } catch (err) { console.warn('[admin]', err.message); }
 
       if (contestId && mpRows.length > 0) {
         for (const mp of mpRows) {
           try {
             const tx = await contracts.fantasyModule.updatePlayerScore(contestId, mp.player_id, mp.fantasy_points);
             await tx.wait();
-          } catch {}
+          } catch (err) { console.warn('[admin]', err.message); }
         }
         steps.push({ step: 'update_fantasy_scores', success: true, contestId, count: mpRows.length });
 

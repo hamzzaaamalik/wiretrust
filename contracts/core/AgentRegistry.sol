@@ -78,6 +78,9 @@ contract AgentRegistry is IAgentRegistry, Ownable {
         if (!agent.active) revert AgentAlreadyInactive(agentId);
 
         agent.active = false;
+        // Note: Agent's PolicyEngine policy remains but is inert.
+        // ExecutionGateway.execute() rejects inactive agents at the
+        // ownership/status check before policy validation runs.
         emit AgentDeactivated(agentId);
     }
 

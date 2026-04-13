@@ -8,7 +8,7 @@ async function hasClaimedOnChain(contracts, address, rewardName) {
       const meta = await contracts.wireTrustNFT.getFullMetadata(id);
       if (meta.name === rewardName) return true;
     }
-  } catch {}
+  } catch (err) { /* non-critical: skip on failure */ }
   return false;
 }
 
@@ -21,10 +21,10 @@ async function countClaimsOnChain(contracts, rewardName) {
       try {
         const meta = await contracts.wireTrustNFT.getFullMetadata(i);
         if (meta.name === rewardName) count++;
-      } catch {}
+      } catch (err) { /* non-critical: skip on failure */ }
     }
     return count;
-  } catch {}
+  } catch (err) { /* non-critical: skip on failure */ }
   return 0;
 }
 

@@ -1,7 +1,16 @@
 const { ethers } = require("ethers");
 
+// Known on-chain events that this relay broadcasts
+const KNOWN_EVENTS = new Set([
+  "AgentExecuted", "AgentViolation",
+  "ContestFinalized", "SquadJoined",
+  "PredictionResolved", "StreakAchieved",
+  "NFTMinted",
+]);
+
 /**
  * Broadcasts a JSON message to every connected WebSocket client.
+ * Validates event name and data shape before sending.
  *
  * @param {import("ws").WebSocketServer} wss
  * @param {string} event
@@ -9,6 +18,16 @@ const { ethers } = require("ethers");
  * @param {string} [txHash]
  */
 function broadcast(wss, event, data, txHash) {
+  // Validate event name and data shape
+  if (!KNOWN_EVENTS.has(event)) {
+    console.warn(`wsRelay: skipping unknown event "${event}"`);
+    return;
+  }
+  if (typeof data !== "object" || data === null) {
+    console.warn(`wsRelay: skipping invalid data for event "${event}"`);
+    return;
+  }
+
   const message = JSON.stringify({
     event,
     data,

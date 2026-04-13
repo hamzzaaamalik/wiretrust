@@ -271,7 +271,9 @@ async function checkLiveMatches() {
               }
             }
           }
-        } catch {}
+        } catch (err) {
+          console.warn(`[matchSync] Fixture detail check failed for match ${dbMatch.match_id}:`, err.message);
+        }
       }
     }
   } catch (err) {
@@ -336,7 +338,7 @@ async function onMatchCompleted(matchId, fixture) {
       await db.query(
         `UPDATE match_players SET fantasy_points = $1 WHERE match_id = $2 AND player_id = $3`,
         [pts, matchId, pid]
-      ).catch(() => {});
+      ).catch((err) => console.warn(`[matchSync] Player points update failed for pid=${pid}:`, err.message));
     }
 
     console.log(`[matchSync] Updated fantasy points for ${playerPoints.size} players in match ${matchId}`);
@@ -388,7 +390,7 @@ async function autoSettle(matchId, winner, abandoned, playerPoints) {
       const winnerOutcome = winner.toUpperCase().replace(/\s+/g, "_") + "_WIN";
       const typeBytes = ethers.encodeBytes32String("MATCH_WINNER");
       const outcomeBytes = ethers.encodeBytes32String(winnerOutcome);
-      const tx = await contracts.predictionModule.resolveMatchPredictions(matchId, typeBytes, outcomeBytes);
+      const tx = await contracts.predictionModule.resolveAllMatchPredictions(matchId, typeBytes, outcomeBytes);
       await tx.wait();
       steps.push("resolve_predictions:OK");
     } catch (err) {
@@ -406,14 +408,18 @@ async function autoSettle(matchId, winner, abandoned, playerPoints) {
         try {
           const tx = await contracts.fantasyModule.updatePlayerScore(matchId, pid, pts);
           await tx.wait();
-        } catch {}
+        } catch (err) {
+          console.warn(`[matchSync] updatePlayerScore failed for pid=${pid}:`, err.message);
+        }
       }
 
       // Lock + Finalize
       try {
         const lockTx = await contracts.fantasyModule.lockContest(matchId);
         await lockTx.wait();
-      } catch {}
+      } catch (err) {
+        console.warn(`[matchSync] lockContest failed for match ${matchId}:`, err.message);
+      }
 
       try {
         const finTx = await contracts.fantasyModule.finalizeContest(matchId);

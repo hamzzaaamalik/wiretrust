@@ -60,7 +60,7 @@ interface IFranchiseRegistry {
 
     /// @notice Emitted when the protocol treasury address is changed
     /// @param newTreasury The new treasury address
-    event ProtocolTreasuryUpdated(address newTreasury);
+    event ProtocolTreasuryUpdated(address indexed newTreasury);
 
     // ══════════════════════════════════════════════
     //              WRITE FUNCTIONS

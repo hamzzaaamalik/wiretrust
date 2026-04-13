@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/IMatchOracle.sol";
 import "../interfaces/IFranchiseRegistry.sol";
 
@@ -13,7 +14,7 @@ import "../interfaces/IFranchiseRegistry.sol";
 /// @dev Oracle reference stored for future auto-scoring integration.
 ///      Currently, scores are set via updatePlayerScore (owner/backend).
 ///      Fans can join/play without oracle — oracle only needed for settlement.
-contract FantasyModule is Ownable, ReentrancyGuard {
+contract FantasyModule is Ownable, ReentrancyGuard, Pausable {
     // ──────────────────────────────────────────────
     //  Errors
     // ──────────────────────────────────────────────
@@ -35,6 +36,7 @@ contract FantasyModule is Ownable, ReentrancyGuard {
     error InsufficientParticipants();
     error NotContestWinner();
     error NoPrizeToClaim();
+    error ZeroPlayerId();
 
     // ──────────────────────────────────────────────
     //  Structs
@@ -66,6 +68,7 @@ contract FantasyModule is Ownable, ReentrancyGuard {
 
     uint256 public constant SQUAD_SIZE = 11;
     uint256 public constant MAX_CREDITS = 100;
+    uint256 public constant ABSOLUTE_MAX_PARTICIPANTS = 200;
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant CAPTAIN_MULTIPLIER = 2;
     uint256 public constant VICE_CAPTAIN_NUMERATOR = 3;
@@ -113,7 +116,7 @@ contract FantasyModule is Ownable, ReentrancyGuard {
     event PlayerScoreUpdated(uint256 indexed contestId, uint256 indexed playerId, uint256 points);
 
     /// @notice Emitted when a contest is finalized and sponsor prizes distributed.
-    event ContestFinalized(uint256 indexed contestId, address winner, uint256 prize);
+    event ContestFinalized(uint256 indexed contestId, address indexed winner, uint256 prize);
 
     /// @notice Emitted when a contest is cancelled and the sponsor pool is refunded.
     event ContestCancelled(uint256 indexed contestId, uint256 refundedPool);
@@ -162,6 +165,11 @@ contract FantasyModule is Ownable, ReentrancyGuard {
             revert NotFranchiseAdmin();
         }
 
+        // Enforce protocol-level cap to prevent gas limit issues in finalizeContest
+        if (maxParticipants > ABSOLUTE_MAX_PARTICIPANTS) {
+            revert ContestFull(ABSOLUTE_MAX_PARTICIPANTS);
+        }
+
         uint256 id;
         unchecked {
             id = ++contestCount;
@@ -184,7 +192,7 @@ contract FantasyModule is Ownable, ReentrancyGuard {
     /// @notice Funds a contest's prize pool. Can be called by franchise admin or any sponsor.
     ///         Additive — multiple calls accumulate the pool. Must be called before contest is locked.
     /// @param contestId The contest to fund.
-    function fundContest(uint256 contestId) external payable nonReentrant {
+    function fundContest(uint256 contestId) external payable nonReentrant whenNotPaused {
         Contest storage contest = contests[contestId];
         if (!contest.active || contest.finalized) revert ContestNotActive();
         if (contestLocked[contestId]) revert ContestAlreadyLocked();
@@ -207,21 +215,27 @@ contract FantasyModule is Ownable, ReentrancyGuard {
         uint256 captainId,
         uint256 viceCaptainId,
         uint256 totalCredits
-    ) external {
+    ) external whenNotPaused {
         Contest storage contest = contests[contestId];
         if (!contest.active || contest.finalized) revert ContestNotActive();
         if (contestLocked[contestId]) revert ContestNotActive();
         if (totalCredits > MAX_CREDITS) revert OverCreditBudget(totalCredits, MAX_CREDITS);
         if (squads[contestId][msg.sender].owner != address(0)) revert AlreadyJoined();
 
+        uint256 currentCount = contestParticipants[contestId].length;
+        // Enforce protocol-level absolute cap to prevent gas limit issues in finalizeContest
+        if (currentCount >= ABSOLUTE_MAX_PARTICIPANTS) {
+            revert ContestFull(ABSOLUTE_MAX_PARTICIPANTS);
+        }
         uint256 maxP = contest.maxParticipants;
-        if (maxP > 0 && contestParticipants[contestId].length >= maxP) {
+        if (maxP > 0 && currentCount >= maxP) {
             revert ContestFull(maxP);
         }
 
         bool captainFound;
         bool viceCaptainFound;
         for (uint256 i; i < SQUAD_SIZE;) {
+            if (playerIds[i] == 0) revert ZeroPlayerId();
             if (playerIds[i] == captainId) captainFound = true;
             if (playerIds[i] == viceCaptainId) viceCaptainFound = true;
 
@@ -353,6 +367,12 @@ contract FantasyModule is Ownable, ReentrancyGuard {
             emit ContestFinalized(contestId, topScorer, 0);
         }
     }
+
+    /// @notice Pause all contest operations. Emergency use only.
+    function pause() external onlyOwner { _pause(); }
+
+    /// @notice Unpause contest operations.
+    function unpause() external onlyOwner { _unpause(); }
 
     /// @notice Cancels an active contest and refunds the sponsor pool to the caller.
     ///         Only the franchise admin or contract owner may cancel.

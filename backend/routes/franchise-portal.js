@@ -11,7 +11,7 @@ async function getTeamFilter(req) {
     const { contracts } = req.app.locals;
     const f = await contracts.franchiseRegistry.getFranchise(req.franchiseId);
     if (f && f.name) return `%${f.name.replace(/^The\s+/i, '')}%`;
-  } catch {}
+  } catch (err) { console.warn('[franchise-portal]', err.message); }
   return null;
 }
 
@@ -32,7 +32,7 @@ router.get('/info', async (req, res) => {
       const bal = await provider.getBalance(f.treasuryWallet);
       const { ethers } = require('ethers');
       treasuryBalance = ethers.formatEther(bal);
-    } catch {}
+    } catch (err) { console.warn('[franchise-portal]', err.message); }
 
     res.json({
       franchiseId: Number(f.franchiseId),
@@ -317,7 +317,7 @@ router.post('/contests/create', async (req, res) => {
     let contestId = null;
     const iface = contracts.fantasyModule.interface;
     for (const log of receipt.logs) {
-      try { const p = iface.parseLog(log); if (p?.name === 'ContestCreated') contestId = p.args.contestId?.toString(); } catch {}
+      try { const p = iface.parseLog(log); if (p?.name === 'ContestCreated') contestId = p.args.contestId?.toString(); } catch (err) { console.warn('[franchise-portal]', err.message); }
     }
 
     // Save sponsor branding to DB
@@ -329,7 +329,7 @@ router.post('/contests/create', async (req, res) => {
            ON CONFLICT (contest_id) DO UPDATE SET sponsor_name = $2, sponsor_logo = $3, banner_url = $4`,
           [Number(contestId), sponsor_name, sponsor_logo || null, banner_url || null]
         );
-      } catch {}
+      } catch (err) { console.warn('[franchise-portal]', err.message); }
     }
 
     res.json({ success: true, contestId, txHash: receipt.hash });
@@ -371,7 +371,7 @@ router.post('/predictions/resolve-match', async (req, res) => {
     const { ethers } = require('ethers');
     const typeBytes = ethers.encodeBytes32String(prediction_type);
     const outcomeBytes = ethers.encodeBytes32String(actual_outcome);
-    const tx = await contracts.predictionModule.resolveMatchPredictions(match_id, typeBytes, outcomeBytes);
+    const tx = await contracts.predictionModule.resolveAllMatchPredictions(match_id, typeBytes, outcomeBytes);
     const receipt = await tx.wait();
 
     res.json({ success: true, txHash: receipt.hash });
@@ -429,7 +429,7 @@ router.post('/settle-match/:matchId', async (req, res) => {
         const winnerOutcome = winner.toUpperCase().replace(/\s+/g, '_') + '_WIN';
         const typeBytes = ethers.encodeBytes32String('MATCH_WINNER');
         const outcomeBytes = ethers.encodeBytes32String(winnerOutcome);
-        const tx = await contracts.predictionModule.resolveMatchPredictions(matchId, typeBytes, outcomeBytes);
+        const tx = await contracts.predictionModule.resolveAllMatchPredictions(matchId, typeBytes, outcomeBytes);
         await tx.wait();
         steps.push({ step: 'resolve_predictions', success: true });
       } catch (err) {
@@ -444,12 +444,12 @@ router.post('/settle-match/:matchId', async (req, res) => {
         const { rows: mpRows } = await db.query(
           'SELECT player_id, fantasy_points FROM match_players WHERE match_id = $1 AND fantasy_points IS NOT NULL', [matchId]);
         for (const mp of mpRows) {
-          try { const tx = await contracts.fantasyModule.updatePlayerScore(matchId, mp.player_id, mp.fantasy_points); await tx.wait(); } catch {}
+          try { const tx = await contracts.fantasyModule.updatePlayerScore(matchId, mp.player_id, mp.fantasy_points); await tx.wait(); } catch (err) { console.warn('[franchise-portal]', err.message); }
         }
-        try { const tx = await contracts.fantasyModule.lockContest(matchId); await tx.wait(); } catch {}
+        try { const tx = await contracts.fantasyModule.lockContest(matchId); await tx.wait(); } catch (err) { console.warn('[franchise-portal]', err.message); }
         try { const tx = await contracts.fantasyModule.finalizeContest(matchId); await tx.wait(); steps.push({ step: 'finalize_contest', success: true }); } catch (err) { steps.push({ step: 'finalize_contest', success: false, error: err.message }); }
       }
-    } catch {}
+    } catch (err) { console.warn('[franchise-portal]', err.message); }
 
     res.json({ success: steps.every(s => s.success), matchId, steps });
   } catch (err) {
@@ -531,7 +531,7 @@ router.get('/analytics', async (req, res) => {
                ) sub`, [v.venue]
             );
             avgRuns = Number(rr[0]?.avg || 0);
-          } catch {}
+          } catch (err) { console.warn('[franchise-portal]', err.message); }
           venueBreakdown.push({
             venue: v.venue, total: Number(v.total), wins: Number(v.wins),
             losses: Number(v.total) - Number(v.wins),
@@ -539,7 +539,7 @@ router.get('/analytics', async (req, res) => {
             avgRuns,
           });
         }
-      } catch {}
+      } catch (err) { console.warn('[franchise-portal]', err.message); }
     }
 
     // H2H records for franchise team vs each opponent
@@ -562,7 +562,7 @@ router.get('/analytics', async (req, res) => {
           losses: Number(r.total) - Number(r.wins),
           winRate: Number(r.total) > 0 ? Math.round((Number(r.wins) / Number(r.total)) * 100) : 0,
         }));
-      } catch {}
+      } catch (err) { console.warn('[franchise-portal]', err.message); }
     }
 
     // Momentum for franchise team
@@ -575,7 +575,7 @@ router.get('/analytics', async (req, res) => {
         if (matchedTeam) {
           momentumData = await getMomentumScore(db, matchedTeam.team);
         }
-      } catch {}
+      } catch (err) { console.warn('[franchise-portal]', err.message); }
     }
 
     res.json({ teamElo, teamRecord, players, topFormPlayers, eloRankings, venueBreakdown, h2hRecords, momentumData });

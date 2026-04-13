@@ -34,6 +34,8 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
     error TransferFailed();
     error UseTransferWithPrice();
     error InvalidEventTimestamp();
+    error EventTimestampTooFar();
+    error NotListedForSale();
 
     // -----------------------------------------------------------------------
     // Enums & Structs
@@ -68,6 +70,7 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
     uint256 public constant MAX_BATCH_SIZE = 100;
     uint256 public constant RESALE_CAP_PERCENT = 110;
     uint8 public constant UNLIMITED_TRANSFERS = type(uint8).max;
+    uint256 public constant MAX_EVENT_HORIZON = 730 days; // 2 years max
 
     // -----------------------------------------------------------------------
     // Immutable State
@@ -87,13 +90,14 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
     mapping(uint256 => uint256) private _ownerTokenIndex;
     mapping(uint256 => mapping(uint256 => uint256[])) private _franchiseCategoryTokens;
     mapping(uint256 => bool) private _transferApproved;
+    mapping(uint256 => uint256) public listingPrice;
 
     // -----------------------------------------------------------------------
     // Events
     // -----------------------------------------------------------------------
 
     event NFTMinted(uint256 indexed tokenId, uint256 indexed franchiseId, NFTCategory category, address to, uint256 facePrice);
-    event NFTTransferred(uint256 indexed tokenId, address from, address to, uint256 price, uint8 transferCount);
+    event NFTTransferred(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price, uint8 transferCount);
     event NFTVerified(uint256 indexed tokenId, address verifiedBy);
     event NFTBurned(uint256 indexed tokenId, string reason);
     event NFTCancelled(uint256 indexed tokenId, uint256 indexed franchiseId);
@@ -240,6 +244,10 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
         if (category == NFTCategory.TICKET || category == NFTCategory.EXPERIENCE) {
             if (eventTimestamp <= block.timestamp) revert EventMustBeInFuture();
         }
+        // Prevent absurd event timestamps (max 2 years from now)
+        if (eventTimestamp > 0 && eventTimestamp > block.timestamp + MAX_EVENT_HORIZON) {
+            revert EventTimestampTooFar();
+        }
 
         uint256 id;
         unchecked {
@@ -350,37 +358,45 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
         tokenCount = currentId;
     }
 
-    /// @notice Transfer a token while collecting payment from the caller.
-    ///         **Design note:** The current owner (seller) calls this function,
-    ///         passing in `msg.value` equal to the agreed `price`. The NFT is
-    ///         transferred to `to` (the buyer). The seller receives the proceeds
-    ///         minus the protocol fee. This is an unusual flow compared to a
-    ///         typical marketplace where a buyer calls and the seller lists; here
-    ///         the seller initiates, so the buyer must have already sent funds to
-    ///         the seller off-chain or through an escrow wrapper.
-    /// @param tokenId The token to transfer.
-    /// @param to      The recipient (buyer).
-    /// @param price   The agreed sale price; must equal msg.value.
-    function transferWithPrice(
-        uint256 tokenId,
-        address to,
-        uint256 price
-    ) external payable nonReentrant {
+    /// @notice Seller lists a token for sale at a specific price.
+    /// @param tokenId The token to list.
+    /// @param price The asking price in native token units.
+    function listForSale(uint256 tokenId, uint256 price) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (msg.value != price) revert IncorrectPayment(price, msg.value);
 
         NFTMetadata storage metadata = nftData[tokenId];
-
-        if (metadata.maxResalePrice > 0) {
-            if (price > metadata.maxResalePrice) {
-                revert ExceedsResalePriceCap(price, metadata.maxResalePrice);
-            }
+        if (metadata.soulbound) revert SoulboundToken();
+        if (metadata.status != TokenStatus.VALID) revert TokenNotValid();
+        if (metadata.maxResalePrice > 0 && price > metadata.maxResalePrice) {
+            revert ExceedsResalePriceCap(price, metadata.maxResalePrice);
         }
+
+        listingPrice[tokenId] = price;
+    }
+
+    /// @notice Cancel a listing.
+    /// @param tokenId The token to delist.
+    function cancelListing(uint256 tokenId) external {
+        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        delete listingPrice[tokenId];
+    }
+
+    /// @notice Buyer purchases a listed token. Sends msg.value to seller minus protocol fee.
+    /// @param tokenId The token to buy.
+    function buyToken(uint256 tokenId) external payable nonReentrant {
+        uint256 price = listingPrice[tokenId];
+        if (price == 0) revert NotListedForSale();
+        if (msg.value != price) revert IncorrectPayment(price, msg.value);
+
+        address seller = ownerOf(tokenId);
+
+        // Clear listing before transfer
+        delete listingPrice[tokenId];
 
         // _transfer calls _update which enforces soulbound, status,
         // maxTransfers, expiry, transferCount, and owner tracking.
         _transferApproved[tokenId] = true;
-        _transfer(msg.sender, to, tokenId);
+        _transfer(seller, msg.sender, tokenId);
         delete _transferApproved[tokenId];
 
         uint256 fee = (price * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;
@@ -390,11 +406,12 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
         }
         uint256 sellerProceeds = price - fee;
         if (sellerProceeds > 0) {
-            (bool sellerSent, ) = payable(msg.sender).call{value: sellerProceeds}("");
+            (bool sellerSent, ) = payable(seller).call{value: sellerProceeds}("");
             if (!sellerSent) revert TransferFailed();
         }
 
-        emit NFTTransferred(tokenId, msg.sender, to, price, metadata.transferCount);
+        NFTMetadata storage metadata = nftData[tokenId];
+        emit NFTTransferred(tokenId, seller, msg.sender, price, metadata.transferCount);
     }
 
     /// @notice Mark a token as USED at an event venue. Only the franchise admin

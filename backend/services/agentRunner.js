@@ -21,9 +21,11 @@ const { analyzeContests } = require("./strategies/fantasyStrategy");
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-const activeAgents = new Map(); // agentId → { interval, config, db, logs }
+const activeAgents = new Map(); // agentId → { interval, config, db, logs, isRunning }
 const agentLogs = new Map(); // agentId → [{ timestamp, type, action, outcome, reasoning }]
 const MAX_LOGS = 100;
+const MAX_AGENTS = 50;
+const MAX_LOG_AGENTS = 200; // max agents tracked in agentLogs before cleanup
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +43,7 @@ function addLog(agentId, entry) {
       `INSERT INTO agent_runs (agent_id, type, action, outcome, reasoning, tx_hash, gas_used)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [agentId, entry.type || 'info', entry.action || '', entry.outcome || '', entry.reasoning || null, entry.txHash || null, entry.gasUsed || null]
-    ).catch(() => {});
+    ).catch((err) => console.warn(`[agentRunner] DB log persist failed for agent ${agentId}:`, err.message));
   }
 }
 
@@ -92,51 +94,91 @@ async function fetchMatchPlayers(db, matchId) {
  * Execute a single action through the ExecutionGateway.
  * Returns { success, type, txHash, reason }.
  */
-async function executeAction(contracts, agentId, target, actionName, calldata, amountWei = 0n) {
+/**
+ * Check if an error is transient and worth retrying.
+ */
+function isTransientError(err) {
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('nonce') || msg.includes('timeout') || msg.includes('etimedout')
+    || msg.includes('502') || msg.includes('503') || msg.includes('rate limit');
+}
+
+/**
+ * Query current gas config from provider instead of hardcoding.
+ */
+async function getGasConfig(provider) {
   try {
-    const actionBytes = ethers.encodeBytes32String(actionName);
-    const nonce = generateNonce();
-
-    const tx = await contracts.executionGateway.execute(
-      agentId,
-      target,
-      actionBytes,
-      calldata,
-      amountWei,
-      nonce,
-      { value: amountWei, gasLimit: 800000n, gasPrice: 10000000000n }
-    );
-
-    const receipt = await tx.wait();
-
-    // Parse events from receipt
-    const iface = contracts.executionGateway.interface;
-    for (const log of receipt.logs) {
-      try {
-        const parsed = iface.parseLog(log);
-        if (parsed?.name === "AgentViolation") {
-          return {
-            success: false,
-            type: "violation",
-            reason: parsed.args.reason,
-            txHash: receipt.hash,
-          };
-        }
-        if (parsed?.name === "AgentExecuted") {
-          return {
-            success: parsed.args.success,
-            type: parsed.args.success ? "success" : "failed",
-            gasUsed: parsed.args.gasUsed.toString(),
-            txHash: receipt.hash,
-          };
-        }
-      } catch {}
-    }
-
-    return { success: true, type: "success", txHash: receipt.hash };
-  } catch (err) {
-    return { success: false, type: "error", reason: err.message || String(err) };
+    const feeData = await provider.getFeeData();
+    return {
+      gasLimit: 800000n,
+      maxFeePerGas: feeData.maxFeePerGas || 10000000000n,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || 1000000000n,
+    };
+  } catch {
+    return { gasLimit: 800000n, gasPrice: 10000000000n };
   }
+}
+
+async function executeAction(contracts, agentId, target, actionName, calldata, amountWei = 0n) {
+  const MAX_RETRIES = 3;
+  const actionBytes = ethers.encodeBytes32String(actionName);
+  const nonce = generateNonce();
+  let lastError;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      // Query current gas price from network
+      const gasConfig = await getGasConfig(contracts.executionGateway.runner?.provider);
+
+      const tx = await contracts.executionGateway.execute(
+        agentId,
+        target,
+        actionBytes,
+        calldata,
+        amountWei,
+        nonce,
+        { value: amountWei, ...gasConfig }
+      );
+
+      const receipt = await tx.wait();
+
+      // Parse events from receipt
+      const iface = contracts.executionGateway.interface;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = iface.parseLog(log);
+          if (parsed?.name === "AgentViolation") {
+            return {
+              success: false,
+              type: "violation",
+              reason: parsed.args.reason,
+              txHash: receipt.hash,
+            };
+          }
+          if (parsed?.name === "AgentExecuted") {
+            return {
+              success: parsed.args.success,
+              type: parsed.args.success ? "success" : "failed",
+              gasUsed: parsed.args.gasUsed.toString(),
+              txHash: receipt.hash,
+            };
+          }
+        } catch {}
+      }
+
+      // No recognized event found — default to failure, not success
+      return { success: false, type: "unknown", reason: "No recognized event in receipt", txHash: receipt.hash };
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES - 1 && isTransientError(err)) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      return { success: false, type: "error", reason: err.message || String(err) };
+    }
+  }
+
+  return { success: false, type: "error", reason: lastError?.message || "Max retries exceeded" };
 }
 
 // ─── Strategy Runners ────────────────────────────────────────────────────────
@@ -576,6 +618,14 @@ async function runFantasyStrategy(contracts, addresses, agentId, config, db) {
  * Run one cycle of an agent's strategy.
  */
 async function runCycle(contracts, addresses, agentId, config, db) {
+  // Prevent concurrent cycles for the same agent
+  const agentState = activeAgents.get(agentId);
+  if (agentState?.isRunning) {
+    addLog(agentId, { type: "warning", action: "CYCLE", outcome: "Previous cycle still running, skipping." });
+    return;
+  }
+  if (agentState) agentState.isRunning = true;
+
   const botType = config.botType || "PREDICTION";
 
   try {
@@ -618,6 +668,9 @@ async function runCycle(contracts, addresses, agentId, config, db) {
     }
   } catch (err) {
     addLog(agentId, { type: "error", action: "CYCLE", outcome: `Unexpected error in cycle: ${err.message}. I'll recover and retry next cycle.` });
+  } finally {
+    const state = activeAgents.get(agentId);
+    if (state) state.isRunning = false;
   }
 }
 
@@ -636,6 +689,11 @@ function startAgent(contracts, addresses, agentId, config = {}, db = null) {
 
   if (!db) {
     return { success: false, reason: "Database not available — cannot start agent" };
+  }
+
+  // Enforce max concurrent agents to prevent memory exhaustion
+  if (activeAgents.size >= MAX_AGENTS) {
+    return { success: false, reason: `Max concurrent agents (${MAX_AGENTS}) reached` };
   }
 
   const intervalMs = (config.intervalSeconds || 60) * 1000;
@@ -659,7 +717,16 @@ function startAgent(contracts, addresses, agentId, config = {}, db = null) {
     );
   }, intervalMs);
 
-  activeAgents.set(agentId, { interval, config, db, startedAt: new Date().toISOString(), totalGasUsed: 0n, totalCycles: 0 });
+  activeAgents.set(agentId, { interval, config, db, startedAt: new Date().toISOString(), totalGasUsed: 0n, totalCycles: 0, isRunning: false });
+
+  // Persist to DB for auto-resume on server restart
+  if (db) {
+    db.query(
+      `INSERT INTO active_agents (agent_id, config) VALUES ($1, $2)
+       ON CONFLICT (agent_id) DO UPDATE SET config = $2, started_at = NOW()`,
+      [agentId, JSON.stringify(config)]
+    ).catch((err) => console.warn(`[agentRunner] Failed to persist agent ${agentId}:`, err.message));
+  }
 
   return { success: true, message: `Agent #${agentId} started in autonomous mode` };
 }
@@ -672,6 +739,13 @@ function stopAgent(agentId) {
   if (!entry) return { success: false, reason: "Agent not running" };
 
   clearInterval(entry.interval);
+
+  // Remove from DB persistence
+  if (entry.db) {
+    entry.db.query('DELETE FROM active_agents WHERE agent_id = $1', [agentId])
+      .catch((err) => console.warn(`[agentRunner] Failed to remove agent ${agentId} from DB:`, err.message));
+  }
+
   activeAgents.delete(agentId);
 
   addLog(agentId, {
@@ -679,6 +753,18 @@ function stopAgent(agentId) {
     action: "STOP",
     outcome: "Autonomous mode deactivated.",
   });
+
+  // Clean up agentLogs for stopped agents after a delay to prevent memory leak
+  setTimeout(() => {
+    if (!activeAgents.has(agentId)) agentLogs.delete(agentId);
+  }, 10 * 60 * 1000); // 10 minutes
+
+  // If total tracked agents in agentLogs exceeds limit, prune oldest inactive
+  if (agentLogs.size > MAX_LOG_AGENTS) {
+    for (const [id] of agentLogs) {
+      if (!activeAgents.has(id)) { agentLogs.delete(id); break; }
+    }
+  }
 
   return { success: true, message: `Agent #${agentId} stopped` };
 }
@@ -824,10 +910,36 @@ function listRunning() {
   return result;
 }
 
+/**
+ * Resume previously running agents from DB on server restart.
+ */
+async function resumeAgents(contracts, addresses, db) {
+  if (!db) return;
+  try {
+    const { rows } = await db.query('SELECT agent_id, config FROM active_agents');
+    for (const row of rows) {
+      try {
+        const config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+        startAgent(contracts, addresses, row.agent_id, config, db);
+        console.log(`[agentRunner] Resumed agent #${row.agent_id}`);
+      } catch (err) {
+        console.warn(`[agentRunner] Failed to resume agent #${row.agent_id}:`, err.message);
+      }
+    }
+    if (rows.length > 0) console.log(`[agentRunner] Resumed ${rows.length} agent(s) from DB`);
+  } catch (err) {
+    // Table may not exist yet — that's fine
+    if (!err.message.includes('does not exist')) {
+      console.warn('[agentRunner] resumeAgents failed:', err.message);
+    }
+  }
+}
+
 module.exports = {
   startAgent,
   stopAgent,
   getAgentStatus,
   getAgentLogs,
   listRunning,
+  resumeAgents,
 };

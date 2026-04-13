@@ -127,6 +127,23 @@ async function buildSquad(matchId, matchInfo, players, db = null) {
 
   if (squad.length < SQUAD_SIZE) return null;
 
+  // Validate uniqueness and credit budget
+  const uniqueIds = new Set(squad.map(p => p.playerId || p.player_id));
+  if (uniqueIds.size !== squad.length) {
+    // Remove duplicates, keeping first occurrence
+    const seen = new Set();
+    const deduped = [];
+    for (const p of squad) {
+      const id = p.playerId || p.player_id;
+      if (!seen.has(id)) { seen.add(id); deduped.push(p); }
+    }
+    squad.length = 0;
+    squad.push(...deduped);
+    spent = squad.reduce((s, p) => s + Number(p.credits), 0);
+    if (squad.length < SQUAD_SIZE) return null;
+  }
+  if (spent > BUDGET) return null;
+
   // Captain: highest EWMA + consistency + matchup combo
   squad.sort((a, b) => {
     const pid_a = a.playerId || a.player_id;

@@ -180,6 +180,9 @@ contract PolicyEngine is IPolicyEngine, Ownable {
         AgentTracking memory tracking = agentTracking[agentId];
 
         // 6. Daily limit
+        // Note: When dailyResetTime is 0 (new agent, never executed), currentDay will always
+        // be greater, so currentDaily resets to 0. This is correct: the daily limit still
+        // applies because the check below evaluates (0 + amount > maxPerDay).
         uint128 _maxPerDay = policy.maxAmountPerDay;
         if (_maxPerDay > 0) {
             uint128 currentDaily = tracking.dailySpent;

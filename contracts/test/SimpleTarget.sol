@@ -5,8 +5,14 @@ pragma solidity ^0.8.27;
 /// @notice Minimal contract used as a call target in gateway tests.
 contract SimpleTarget {
     uint256 public callCount;
+    bool public shouldRevert;
+
+    function setShouldRevert(bool _shouldRevert) external {
+        shouldRevert = _shouldRevert;
+    }
 
     function doSomething() external payable {
+        if (shouldRevert) revert("Intentional revert");
         callCount++;
     }
 

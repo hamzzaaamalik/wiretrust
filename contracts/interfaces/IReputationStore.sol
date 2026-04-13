@@ -48,7 +48,7 @@ interface IReputationStore {
     //  Events
     // ──────────────────────────────────────────────────────────────────────
 
-    event GatewaySet(address gateway);
+    event GatewaySet(address indexed gateway);
     event ScoreUpdated(uint256 indexed agentId, uint256 newScore, RiskBadge badge);
 
     // ──────────────────────────────────────────────────────────────────────

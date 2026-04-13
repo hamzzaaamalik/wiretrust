@@ -2,6 +2,7 @@
 pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/IMatchOracle.sol";
 import "../interfaces/IFranchiseRegistry.sol";
 
@@ -11,7 +12,7 @@ import "../interfaces/IFranchiseRegistry.sol";
 ///         streak bonuses, and on-chain reputation for correct predictions.
 ///         Points unlock badges (soulbound NFTs) and perks.
 /// @dev No ReentrancyGuard needed — no ETH transfers anywhere in this contract.
-contract PredictionModule is Ownable {
+contract PredictionModule is Ownable, Pausable {
     // -----------------------------------------------------------------------
     // Custom Errors
     // -----------------------------------------------------------------------
@@ -145,7 +146,7 @@ contract PredictionModule is Ownable {
         uint256 matchId,
         bytes32 predictionType,
         bytes32 predictedOutcome
-    ) external returns (uint256) {
+    ) external whenNotPaused returns (uint256) {
         if (matchId == 0) revert InvalidMatchId();
 
         IFranchiseRegistry.Franchise memory franchise = franchiseRegistry.getFranchise(franchiseId);
@@ -198,15 +199,39 @@ contract PredictionModule is Ownable {
         _resolve(pred, actualOutcome);
     }
 
-    /// @notice Batch-resolve all predictions for a match + type against the actual outcome.
+    /// @notice Batch-resolve predictions for a match + type with pagination.
     /// @dev Streak bonuses are calculated using live streak values, so resolution order within
-    ///      a batch may affect bonus amounts. This is accepted behavior — the first correct
-    ///      prediction resolved in a batch gets the pre-existing streak bonus, while subsequent
-    ///      correct predictions by the same user (different type) benefit from the incremented streak.
+    ///      a batch may affect bonus amounts. This is accepted behavior.
+    ///      Use startIndex/endIndex to paginate large batches and avoid gas limits.
     /// @param matchId The match whose predictions to resolve.
     /// @param predictionType The prediction type to filter by.
     /// @param actualOutcome The outcome that actually occurred.
+    /// @param startIndex Starting index in the matchPredictions array (0-based).
+    /// @param endIndex End index (exclusive). Pass 0 to resolve from startIndex to end.
     function resolveMatchPredictions(
+        uint256 matchId,
+        bytes32 predictionType,
+        bytes32 actualOutcome,
+        uint256 startIndex,
+        uint256 endIndex
+    ) external onlyOwner {
+        uint256[] memory predIds = matchPredictions[matchId];
+        uint256 length = predIds.length;
+        if (endIndex == 0 || endIndex > length) endIndex = length;
+        require(startIndex < endIndex, "Invalid range");
+
+        for (uint256 i = startIndex; i < endIndex;) {
+            Prediction storage pred = predictions[predIds[i]];
+            if (pred.status == PredictionStatus.OPEN && pred.predictionType == predictionType) {
+                _resolve(pred, actualOutcome);
+            }
+            unchecked { ++i; }
+        }
+    }
+
+    /// @notice Convenience wrapper: resolve all predictions for a match + type in one call.
+    /// @dev For matches with fewer than ~500 predictions. Use the paginated version for larger batches.
+    function resolveAllMatchPredictions(
         uint256 matchId,
         bytes32 predictionType,
         bytes32 actualOutcome
@@ -247,6 +272,12 @@ contract PredictionModule is Ownable {
     // -----------------------------------------------------------------------
     // External — Admin
     // -----------------------------------------------------------------------
+
+    /// @notice Pause all prediction creation. Emergency use only.
+    function pause() external onlyOwner { _pause(); }
+
+    /// @notice Unpause prediction creation.
+    function unpause() external onlyOwner { _unpause(); }
 
     /// @notice Add or remove a prediction type from the whitelist.
     /// @param predictionType The type tag to update (e.g. keccak256("MATCH_WINNER")).

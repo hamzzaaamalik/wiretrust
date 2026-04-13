@@ -9,6 +9,12 @@ router.post("/create-wallet", async (req, res) => {
     const { signer, db } = req.app.locals;
     const walletType = req.body.walletType || "metamask";
 
+    // Validate walletType against known types
+    const validTypes = ["metamask", "web3auth", "walletconnect"];
+    if (!validTypes.includes(walletType)) {
+      return res.status(400).json({ error: `Invalid walletType. Must be one of: ${validTypes.join(", ")}` });
+    }
+
     let funded = false;
     if (signer) {
       try {

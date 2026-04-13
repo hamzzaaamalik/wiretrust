@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/IExecutionGateway.sol";
 import "../interfaces/IAgentRegistry.sol";
 import "../interfaces/IPolicyEngine.sol";
@@ -13,7 +14,7 @@ import "../interfaces/IReputationStore.sol";
 ///         execute(), which enforces ownership, activation status, target
 ///         restrictions, nonce uniqueness, policy compliance, fee collection,
 ///         and reputation bookkeeping in a single atomic transaction.
-contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard {
+contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard, Pausable {
     // ──────────────────────────────────────────────
     //  Constants
     // ──────────────────────────────────────────────
@@ -111,7 +112,7 @@ contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard {
         bytes calldata data,
         uint256 amount,
         bytes32 nonce
-    ) external payable nonReentrant returns (bool) {
+    ) external payable nonReentrant whenNotPaused returns (bool) {
         uint256 gasStart = gasleft();
 
         if (msg.value != amount) revert ValueMismatch();
@@ -150,9 +151,14 @@ contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard {
             return false;
         }
 
+        // Calculate fee but hold it in contract until success is confirmed
+        uint256 fee;
         uint256 forwardAmount = amount;
         if (amount > 0) {
-            forwardAmount = _collectFee(amount);
+            unchecked {
+                fee = (amount * PROTOCOL_FEE_BPS) / BPS_DENOMINATOR;
+                forwardAmount = amount - fee;
+            }
         }
 
         (bool callSuccess, ) = target.call{value: forwardAmount}(data);
@@ -162,13 +168,19 @@ contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard {
         if (!callSuccess) {
             reputationStore.recordFailure(agentId, gasUsed);
             emit AgentExecuted(agentId, action, false, gasUsed, block.timestamp);
-            // Refund remaining ETH on call failure
-            if (forwardAmount > 0) {
-                (bool refunded, ) = msg.sender.call{value: forwardAmount}("");
-                refunded; // silence unused-variable warning — refund is best-effort
-                // Don't revert if refund fails — fee already collected, just emit
+            // Refund full amount (fee was never sent to treasury)
+            if (amount > 0) {
+                (bool refunded, ) = msg.sender.call{value: amount}("");
+                if (!refunded) revert FeeTransferFailed();
             }
             return false;
+        }
+
+        // Collect fee only after successful execution
+        if (fee > 0) {
+            address treasury = protocolTreasury;
+            (bool sent, ) = treasury.call{value: fee}("");
+            if (!sent) revert FeeTransferFailed();
         }
 
         policyEngine.updateAfterExecution(agentId, amount);
@@ -206,6 +218,12 @@ contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard {
         protocolTreasury = _treasury;
         emit ProtocolTreasuryUpdated(_treasury);
     }
+
+    /// @notice Pause all agent executions. Emergency use only.
+    function pause() external onlyOwner { _pause(); }
+
+    /// @notice Unpause agent executions.
+    function unpause() external onlyOwner { _unpause(); }
 
     /// @inheritdoc IExecutionGateway
     function sweepETH(address to) external onlyOwner {

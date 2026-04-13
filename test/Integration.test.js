@@ -107,7 +107,7 @@ describe("WireTrust Integration Tests", function () {
       await matchOracle.connect(oracle).submitResult(matchId, "Rawalpindiz", false);
 
       // 4. Resolve predictions
-      await predictionModule.resolveMatchPredictions(matchId, typeBytes, outcome1);
+      await predictionModule.resolveAllMatchPredictions(matchId, typeBytes, outcome1);
 
       // 5. Check points
       const stats1 = await predictionModule.getUserStats(fan1.address);
@@ -344,11 +344,10 @@ describe("WireTrust Integration Tests", function () {
 
       const tokenId = 1;
 
-      // Fan1 resells to fan2 at 110% of face (max allowed)
+      // Fan1 lists for sale, fan2 buys at 110% of face (max allowed)
       const resalePrice = facePrice * 110n / 100n;
-      await wireTrustNFT.connect(fan1).transferWithPrice(
-        tokenId, fan2.address, resalePrice, { value: resalePrice }
-      );
+      await wireTrustNFT.connect(fan1).listForSale(tokenId, resalePrice);
+      await wireTrustNFT.connect(fan2).buyToken(tokenId, { value: resalePrice });
 
       expect(await wireTrustNFT.ownerOf(tokenId)).to.equal(fan2.address);
     });

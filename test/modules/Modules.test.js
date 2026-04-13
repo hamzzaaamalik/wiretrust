@@ -980,7 +980,7 @@ describe("WireTrust Modules", function () {
         .connect(fan2)
         .createPrediction(franchiseId, matchId, MATCH_WINNER, TEAM_B_WIN);
 
-      await predictionModule.resolveMatchPredictions(
+      await predictionModule.resolveAllMatchPredictions(
         matchId,
         MATCH_WINNER,
         TEAM_A_WIN
@@ -1274,10 +1274,9 @@ describe("WireTrust Modules", function () {
           0
         );
 
+        const price = ethers.parseEther("0.01");
         await expect(
-          wireTrustNFT
-            .connect(fan1)
-            .transferWithPrice(1, fan2.address, 0, { value: 0 })
+          wireTrustNFT.connect(fan1).listForSale(1, price)
         ).to.be.revertedWithCustomError(wireTrustNFT, "SoulboundToken");
       });
 
@@ -1327,11 +1326,9 @@ describe("WireTrust Modules", function () {
           treasury.address
         );
 
-        await wireTrustNFT
-          .connect(fan1)
-          .transferWithPrice(tokenId, fan2.address, resalePrice, {
-            value: resalePrice,
-          });
+        // Seller lists, buyer purchases
+        await wireTrustNFT.connect(fan1).listForSale(tokenId, resalePrice);
+        await wireTrustNFT.connect(fan2).buyToken(tokenId, { value: resalePrice });
 
         expect(await wireTrustNFT.ownerOf(tokenId)).to.equal(fan2.address);
 
@@ -1357,9 +1354,7 @@ describe("WireTrust Modules", function () {
         await expect(
           wireTrustNFT
             .connect(fan1)
-            .transferWithPrice(tokenId, fan2.address, tooHigh, {
-              value: tooHigh,
-            })
+            .listForSale(tokenId, tooHigh)
         ).to.be.revertedWithCustomError(
           wireTrustNFT,
           "ExceedsResalePriceCap"
@@ -1380,15 +1375,15 @@ describe("WireTrust Modules", function () {
         const price = facePrice; // within cap
 
         // First transfer (maxTransfers=1 for TICKET)
-        await wireTrustNFT
-          .connect(fan1)
-          .transferWithPrice(tokenId, fan2.address, price, { value: price });
+        await wireTrustNFT.connect(fan1).listForSale(tokenId, price);
+        await wireTrustNFT.connect(fan2).buyToken(tokenId, { value: price });
 
         // Second transfer should fail
+        await wireTrustNFT.connect(fan2).listForSale(tokenId, price);
         await expect(
           wireTrustNFT
-            .connect(fan2)
-            .transferWithPrice(tokenId, fan3.address, price, { value: price })
+            .connect(fan3)
+            .buyToken(tokenId, { value: price })
         ).to.be.revertedWithCustomError(wireTrustNFT, "MaxTransfersReached");
       });
 
@@ -1406,9 +1401,7 @@ describe("WireTrust Modules", function () {
         await expect(
           wireTrustNFT
             .connect(fan2)
-            .transferWithPrice(tokenId, fan1.address, facePrice, {
-              value: facePrice,
-            })
+            .listForSale(tokenId, facePrice)
         ).to.be.revertedWithCustomError(wireTrustNFT, "NotTokenOwner");
       });
 
@@ -1423,16 +1416,17 @@ describe("WireTrust Modules", function () {
           facePrice
         );
 
+        await wireTrustNFT.connect(fan1).listForSale(tokenId, facePrice);
         await expect(
           wireTrustNFT
-            .connect(fan1)
-            .transferWithPrice(tokenId, fan2.address, facePrice, {
+            .connect(fan2)
+            .buyToken(tokenId, {
               value: ethers.parseEther("0.5"),
             })
         ).to.be.revertedWithCustomError(wireTrustNFT, "IncorrectPayment");
       });
 
-      it("should require transferWithPrice for TICKET/EXPERIENCE (block raw transfer)", async function () {
+      it("should require buyToken for TICKET/EXPERIENCE (block raw transfer)", async function () {
         const { wireTrustNFT, fan1, fan2, franchiseId } =
           await loadFixture(deployFixture);
         const facePrice = ethers.parseEther("1");
@@ -1565,11 +1559,7 @@ describe("WireTrust Modules", function () {
         await wireTrustNFT.verifyAtVenue(tokenId);
 
         await expect(
-          wireTrustNFT
-            .connect(fan1)
-            .transferWithPrice(tokenId, fan2.address, facePrice, {
-              value: facePrice,
-            })
+          wireTrustNFT.connect(fan1).listForSale(tokenId, facePrice)
         ).to.be.revertedWithCustomError(wireTrustNFT, "TokenNotValid");
       });
     });
@@ -1673,15 +1663,16 @@ describe("WireTrust Modules", function () {
           1
         );
 
+        // List before time advances
+        await wireTrustNFT.connect(fan1).listForSale(tokenId, facePrice);
+
         // Advance past event
         await time.increaseTo(eventTs + 1);
 
         await expect(
           wireTrustNFT
-            .connect(fan1)
-            .transferWithPrice(tokenId, fan2.address, facePrice, {
-              value: facePrice,
-            })
+            .connect(fan2)
+            .buyToken(tokenId, { value: facePrice })
         ).to.be.revertedWithCustomError(wireTrustNFT, "TokenExpired");
       });
 

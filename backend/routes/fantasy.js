@@ -266,7 +266,7 @@ router.post("/create-contest", async (req, res) => {
         if (parsed?.name === "ContestCreated") {
           contestId = parsed.args.contestId?.toString();
         }
-      } catch {}
+      } catch (err) { /* non-critical: log parsing */ }
     }
 
     res.json({
@@ -342,7 +342,7 @@ router.get("/all-contests", async (req, res) => {
           bannerUrl: sp?.banner || null,
           startTime: matchInfo?.startTime || null,
         });
-      } catch {}
+      } catch (err) { /* non-critical: log parsing */ }
     }
 
     res.json(contests);

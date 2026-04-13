@@ -89,7 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_claims_address ON challenge_claims (address);
 -- Faucet history: persistent across restarts
 CREATE TABLE IF NOT EXISTS faucet_history (
   id            SERIAL PRIMARY KEY,
-  address       VARCHAR(42) NOT NULL,
+  address       VARCHAR(42) NOT NULL UNIQUE,
   amount        VARCHAR(50) NOT NULL DEFAULT '0.1',
   tx_hash       VARCHAR(66),
   funded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_agent_runs_agent ON agent_runs (agent_id, created_at DESC);
+
+-- Active agents: persisted for auto-resume on server restart
+CREATE TABLE IF NOT EXISTS active_agents (
+  agent_id      INTEGER PRIMARY KEY,
+  config        JSONB NOT NULL,
+  started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Contest sponsors: sponsor branding per contest
 CREATE TABLE IF NOT EXISTS contest_sponsors (

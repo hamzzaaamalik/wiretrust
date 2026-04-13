@@ -14,19 +14,21 @@ const DEFAULT_AMOUNT = ethers.parseEther("0.1");
  */
 async function fundWallet(signer, toAddress, amount, db) {
   const normalized = toAddress.toLowerCase();
+  const value = amount || DEFAULT_AMOUNT;
 
-  // Check if already funded (DB-backed, persists across restarts)
+  // Atomic lock: insert a placeholder row to prevent concurrent funding.
+  // ON CONFLICT DO NOTHING returns 0 rows if address already exists.
   if (db) {
-    const { rows } = await db.query(
-      "SELECT id FROM faucet_history WHERE address = $1 LIMIT 1",
-      [normalized]
+    const { rowCount } = await db.query(
+      `INSERT INTO faucet_history (address, amount, tx_hash)
+       VALUES ($1, $2, 'pending')
+       ON CONFLICT (address) DO NOTHING`,
+      [normalized, ethers.formatEther(value)]
     );
-    if (rows.length > 0) {
+    if (rowCount === 0) {
       return { success: false, reason: "already funded" };
     }
   }
-
-  const value = amount || DEFAULT_AMOUNT;
 
   try {
     const tx = await signer.sendTransaction({
@@ -35,11 +37,11 @@ async function fundWallet(signer, toAddress, amount, db) {
     });
     await tx.wait();
 
-    // Record in DB
+    // Update placeholder with actual tx hash
     if (db) {
       await db.query(
-        "INSERT INTO faucet_history (address, amount, tx_hash) VALUES ($1, $2, $3)",
-        [normalized, ethers.formatEther(value), tx.hash]
+        "UPDATE faucet_history SET tx_hash = $1 WHERE address = $2",
+        [tx.hash, normalized]
       );
     }
 
@@ -49,6 +51,13 @@ async function fundWallet(signer, toAddress, amount, db) {
       amount: ethers.formatEther(value),
     };
   } catch (err) {
+    // Remove placeholder on failure so the user can retry
+    if (db) {
+      await db.query(
+        "DELETE FROM faucet_history WHERE address = $1 AND tx_hash = 'pending'",
+        [normalized]
+      ).catch(() => {});
+    }
     console.error(`faucetService.fundWallet failed for ${toAddress}:`, err.message);
     throw err;
   }
