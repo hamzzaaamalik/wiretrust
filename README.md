@@ -9,18 +9,18 @@
 
 | Contract | Address |
 |----------|---------|
-| FranchiseRegistry | `0x2e0aaEB43D3E0C331d057052cF768d51B26e2a0B` |
-| AgentRegistry | `0x3aD3Fd642e062fAf5948DF6DA0614E97824F6A38` |
-| ReputationStore | `0x6CB27a8594Ea5A01aB2F4CE5C4225D4BdF04BA20` |
-| PolicyEngine | `0xc5aA8cbB3c7D6AeFf7EaD29E96eD8c6Ea93d0149` |
-| ExecutionGateway | `0x620901f2AE286ff1c18dFc1751f2f4a5c0d1a2fB` |
-| MatchOracle | `0xdFF4e73cc0493EcDD2d18183223DBc4435D86404` |
-| PredictionModule | `0x8aFaf4d20F9707375A53D7EcED61129a6eE9480A` |
-| FantasyModule | `0xe9571F7C8b4a4672bE2C7416c24B21EA045C3A1f` |
-| WireTrustNFT | `0x1F0bFa8Eda8f1dfc09ea8fa8885a2F5d1Cc4bf43` |
+| FranchiseRegistry | `0x0352a16cd7B6b06707A363452d7f1937840E90D2` |
+| AgentRegistry | `0x603F8Db0b75d7dc699335a8C45412EC2eE49A60c` |
+| ReputationStore | `0x096A05F4F2d81617Ac93589958f9736B3DF2c915` |
+| PolicyEngine | `0x0802bBe692e21ed0f7C00d7bD282ec5fAB2E582C` |
+| ExecutionGateway | `0xC148f0AE3d83089217d33AA2b0b00e1F2b9e889e` |
+| MatchOracle | `0x3c1D9725eD4D92484Ac45af00a0b836C95a76E86` |
+| PredictionModule | `0xe175236fe8978FdEDB7d563da3498c12531b241c` |
+| FantasyModule | `0x726fEb1Bdf8E4CE4ABcd273C5c1696Ed24f31d30` |
+| WireTrustNFT | `0x9127EFFB479ae271601d18Bfb7CF6Af491244e1b` |
 | Deployer / Treasury | `0x22EfFAe93649A93F7c6e01aBB6Ce2496BB2D4105` |
 
-**Network:** WireFluid EVM (Chain ID: 92533) | **Deployed:** 2026-03-21
+**Network:** WireFluid EVM (Chain ID: 92533) | **Deployed:** 2026-04-15 (v2 with Pausable)
 
 ---
 

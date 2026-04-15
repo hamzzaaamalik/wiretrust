@@ -12,7 +12,7 @@ import Pagination from '../components/ui/Pagination';
 import PageGuide from '../components/common/PageGuide';
 
 const PREDICTION_ABI = [
-  'function createPrediction(uint256 franchiseId, uint256 matchId, bytes32 predictionType, bytes32 predictedOutcome) returns (uint256)',
+  'function createPrediction(uint256 franchiseId, uint256 matchId, bytes32 predictionType, bytes32 predictedOutcome) external returns (uint256)',
   'function getUserStats(address user) view returns (tuple(uint256 totalPoints, uint256 totalCorrect, uint256 totalPredictions, uint256 currentStreak))',
 ];
 
@@ -233,6 +233,8 @@ export default function Predictions() {
       setSuccess('Prediction submitted! Earn points when the match is resolved.');
       setTab(1);
     } catch (err) {
+      console.error('Prediction failed:', err);
+      console.error('Match:', matchId, 'Type:', predictionType, 'Outcome:', predictedOutcome);
       setSuccess(null);
       setError(friendlyError(err));
     } finally {

@@ -33,9 +33,9 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3001',
+      '/api': process.env.VITE_API_TARGET || 'http://localhost:3001',
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: process.env.VITE_WS_TARGET || 'ws://localhost:3001',
         ws: true,
       },
     },

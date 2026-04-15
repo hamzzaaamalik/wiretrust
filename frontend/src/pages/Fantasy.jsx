@@ -11,7 +11,19 @@ import Pagination from '../components/ui/Pagination';
 import PageGuide from '../components/common/PageGuide';
 
 const FANTASY_ABI = [
-  'function joinContest(uint256 contestId, uint256[11] playerIds, uint256 captainId, uint256 viceCaptainId, uint256 totalCredits)',
+  {
+    "inputs": [
+      { "name": "contestId", "type": "uint256" },
+      { "name": "playerIds", "type": "uint256[11]" },
+      { "name": "captainId", "type": "uint256" },
+      { "name": "viceCaptainId", "type": "uint256" },
+      { "name": "totalCredits", "type": "uint256" }
+    ],
+    "name": "joinContest",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
 ];
 
 const TABS = ['Open Contests', 'My Squads', 'Leaderboard'];
@@ -488,17 +500,31 @@ export default function Fantasy() {
     setModalError('');
     try {
       if (!addresses?.fantasyModule) throw new Error('Contract address not loaded. Please wait and retry.');
-      const contract = new Contract(addresses.fantasyModule, FANTASY_ABI, signer);
+      const contestId = Number(buildingContest.contestId || buildingContest.id);
       const playerIds = selected.map((p) => p.id);
+      const capId = captain;
+      const vcId = viceCaptain;
+      const credits = Math.round(totalCredits);
+
+      console.log('Submitting:', { contestId, playerIds, capId, vcId, credits });
+
+      // Use full compiled ABI from artifacts
+      const artifact = await import('../abis/FantasyModule.json');
+      const abi = artifact.default?.abi || artifact.abi;
+
+      const contract = new Contract(addresses.fantasyModule, abi, signer);
       const tx = await contract.joinContest(
-        buildingContest.contestId || buildingContest.id,
-        playerIds, captain, viceCaptain, Math.round(totalCredits),
-        { gasLimit: 600000n, gasPrice: 10000000000n }
+        contestId, playerIds, capId, vcId, credits,
+        { gasLimit: 800000n }
       );
       await tx.wait();
       setSubmitSuccess(true);
       fetchContests();
     } catch (err) {
+      console.error('Squad submission failed:', err);
+      console.error('Contest ID:', buildingContest.contestId || buildingContest.id);
+      console.error('Player IDs:', selected.map(p => p.id));
+      console.error('Captain:', captain, 'VC:', viceCaptain, 'Credits:', Math.round(totalCredits));
       setModalError(friendlyError(err));
     } finally {
       setSubmitting(false);
