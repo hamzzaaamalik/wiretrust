@@ -1,7 +1,7 @@
-# WireTrust Protocol - Complete Documentation
+# WireTrust Protocol
 
-> Multi-franchise fan economy protocol on WireFluid blockchain.
-> Version 1.0.0 | Last updated: 2026-03-23
+> AI-powered cricket fan economy on WireFluid blockchain.
+> Version 2.0.0 | Last updated: 2026-04-15
 
 ---
 
@@ -30,20 +30,29 @@ WireTrust is a decentralized fan engagement platform built on the WireFluid bloc
 
 - **Make FREE predictions** on match outcomes and earn points
 - **Join FREE fantasy contests** with sponsor-funded prize pools
-- **Deploy autonomous AI agents** powered by 6-factor cricket intelligence
+- **Unlock AI agents** through fan achievements (5 predictions + 1 squad + 100 points)
 - **Earn NFT rewards** (tickets, badges, collectibles, merchandise) through challenges
 - **Track reputation** across all activities via on-chain scoring
+
+### For Franchises
+
+- **Deploy ML-powered AI agents** (Opposition Scout, Squad Form Monitor, Match Preparation)
+- **Random Forest match prediction** (200 trees, 80/20 train/test split, real test accuracy)
+- **Player performance forecasting** (weighted linear regression with confidence intervals)
+- **Anomaly detection** (z-score analysis for breakouts and collapses)
+- **Squad optimizer** (constrained knapsack algorithm with ML-predicted scores)
 
 ### Platform Stats (PSL 2026)
 
 | Metric | Count |
 |--------|-------|
-| Smart Contracts | 9 deployed |
-| Frontend Pages | 29 |
+| Smart Contracts | 9 deployed (with Pausable emergency stop) |
+| Passing Tests | 203 |
+| Frontend Pages | 30 (Home + Dashboard split) |
 | Reusable Components | 19 |
-| Backend Routes | 12 modules, 70+ endpoints |
-| Backend Services | 10 modules |
-| Solidity Code | 3,261 lines |
+| Backend Routes | 12 modules, 80+ endpoints |
+| Backend Services | 13 modules (including ML engine) |
+| Solidity Code | 3,400+ lines |
 | PSL Teams | 8 (6 established + 2 new) |
 | PSL Players | 157 |
 | PSL Matches | 44 (2026 season) |
@@ -62,8 +71,10 @@ WireTrust is a decentralized fan engagement platform built on the WireFluid bloc
 | Auth | Web3Auth (social login) + MetaMask |
 | Real-time | WebSocket relay |
 | Cricket Data | Sportmonks Cricket API + ESPNcricinfo historical data |
-| AI Intelligence | 6-factor composite model (pure math, no ML libs) |
-| Deployment | Hardhat |
+| AI Intelligence | 6-factor engine + Random Forest ML (ml-random-forest) |
+| ML Algorithms | Match prediction (RF), player forecasting (regression), squad optimizer (knapsack), anomaly detection (z-score) |
+| Security | Rate limiting, CSRF protection, Pausable contracts, input validation |
+| Deployment | Hardhat, PM2, Nginx |
 
 ### Project Structure
 
@@ -96,24 +107,31 @@ e:\wiretrust/
 │   │   ├── nfts.js               # NFT verification + metadata
 │   │   └── predictions.js        # Prediction leaderboard + history
 │   ├── services/                 # 10 service modules
-│   │   ├── agentRunner.js        # Autonomous agent loop (PERCEIVE → REASON → ACT)
-│   │   ├── cricketIntelligence.js# 6-factor analysis engine (13 functions)
-│   │   ├── cricApi.js            # Sportmonks API wrapper
-│   │   ├── faucetService.js      # Auto-fund new wallets
-│   │   ├── matchSync.js          # Sportmonks → DB sync
-│   │   ├── oracleService.js      # Oracle submission helper
-│   │   ├── walletService.js      # Wallet management
-│   │   ├── wsRelay.js            # WebSocket event relay
+│   │   ├── agentRunner.js            # Fan agent loop (PERCEIVE → REASON → ACT)
+│   │   ├── franchiseAgentRunner.js   # Franchise AI agents (Scout, Form, Match Prep)
+│   │   ├── franchiseIntelligence.js  # Franchise-specific intelligence layer
+│   │   ├── mlEngine.js               # ML engine (Random Forest, regression, knapsack, z-score)
+│   │   ├── cricketIntelligence.js    # 6-factor analysis engine (13 functions)
+│   │   ├── cricApi.js                # Sportmonks API wrapper
+│   │   ├── faucetService.js          # Auto-fund new wallets (atomic DB insert)
+│   │   ├── matchSync.js              # Sportmonks → DB sync
+│   │   ├── oracleService.js          # Oracle submission helper
+│   │   ├── walletService.js          # Wallet management
+│   │   ├── wsRelay.js                # WebSocket event relay (with schema validation)
 │   │   └── strategies/
 │   │       ├── predictionStrategy.js  # 6-factor prediction logic
 │   │       └── fantasyStrategy.js     # Squad building + matchup analysis
-│   └── middleware/               # Auth middleware
+│   └── middleware/
+│       ├── auth.js                    # Wallet-based auth
+│       └── rateLimiter.js             # 3-tier rate limiting (strict/moderate/relaxed)
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/                # 29 page components
-│   │   │   ├── *.jsx             # 12 public pages
+│   │   ├── pages/                # 30 page components
+│   │   │   ├── Home.jsx          # Landing page (visitors)
+│   │   │   ├── Dashboard.jsx     # Connected user dashboard
+│   │   │   ├── *.jsx             # 11 other public pages
 │   │   │   ├── admin/            # 9 admin pages
-│   │   │   └── franchise/        # 8 franchise pages
+│   │   │   └── franchise/        # 9 franchise pages (includes AI Agents)
 │   │   ├── components/           # 19 reusable components
 │   │   ├── store/                # Redux Toolkit store
 │   │   │   ├── index.js          # Store configuration
@@ -124,8 +142,14 @@ e:\wiretrust/
 │   │   └── abis/                 # Contract ABIs
 │   └── vite.config.js
 ├── scripts/                      # Deploy and seed scripts
+├── test/                         # 203 passing tests
+│   ├── core/                     # Core contract tests
+│   ├── modules/                  # Module tests
+│   ├── oracle/                   # Oracle tests
+│   ├── Integration.test.js       # End-to-end protocol tests
+│   └── NewFeatures.test.js       # Tests for all new features (Pausable, NFT marketplace, ML)
+├── scripts/                      # Deploy and seed scripts
 ├── deployed-addresses.json
-├── WireTrust_Pitch_Deck.pptx     # 13-slide investor deck
 └── hardhat.config.js
 ```
 
@@ -574,49 +598,46 @@ Output: predictedWinner, confidence (%), factorScores, reasoning string
 
 ## AI Agent System
 
-### Agent Runner (`backend/services/agentRunner.js`)
+WireTrust has two distinct agent systems: **Fan Agents** (achievement-locked) and **Franchise AI Agents** (ML-powered).
 
-Three-phase autonomous loop:
+### Fan Agents (Achievement-Locked)
 
-```
-Phase 1: PERCEIVE
-├── Query MatchOracle for unresolved matches
-├── Fallback to DB if oracle returns 0 (SELECT status IN ('UPCOMING','LIVE','COMPLETED'))
-├── Load player data for each match
-└── Load existing predictions/squads to avoid duplicates
+Fans unlock the ability to deploy 1 personal AI agent after reaching milestones:
 
-Phase 2: REASON
-├── Run predictionStrategy.analyzePredictions() using 6-factor intelligence
-├── Run fantasyStrategy.buildSquad() with value-based squad optimization
-├── Each decision includes: outcome, confidence %, reasoning string
-└── Decisions logged to agent_decisions table
+| Milestone | Requirement |
+|-----------|-------------|
+| Predictions | 5+ made |
+| Squad Challenge | 1+ joined |
+| Points | 100+ earned |
 
-Phase 3: ACT
-├── Execute predictions on-chain via ExecutionGateway
-├── Join contests with built squads
-├── Record success/failure in decision log
-└── Max 3 actions per cycle (configurable)
-```
+Once unlocked, fans can Quick Deploy one of 3 templates (Prediction Bot, Squad Builder, Multi Agent) or manually configure via PolicyBuilder.
 
-### Prediction Strategy
+Agent lifecycle: `PERCEIVE → REASON → ACT` via ExecutionGateway with 8 on-chain policy checks.
 
-Uses full 6-factor intelligence when DB is available. Falls back to credit-based heuristics when DB is unavailable.
+### Franchise AI Agents (ML-Powered)
 
-**Fallback Logic:**
-```
-if (db available) → 6-factor intelligence (ELO + EWMA + H2H + Momentum + Venue + Role)
-else              → credit-based heuristic (team roster total credits)
-```
+Franchise admins deploy autonomous intelligence agents from the Franchise Portal (`/franchise/agents`).
 
-### Fantasy Strategy
+**3 Agent Types:**
 
-**Squad Building Algorithm:**
-1. Filter players by match (must be in match_players)
-2. Calculate `valueScore = ewma / credits` for each player
-3. Boost 15% if player has 2+ matches vs opponent with avgFP > overall EWMA
-4. Penalty 10% if avgFP < 70% of EWMA vs opponent
-5. Sort by value score, pick 11 within 100 credit budget
-6. Captain = highest EWMA player, Vice-Captain = second highest
+| Agent | Purpose | Interval |
+|-------|---------|----------|
+| Opposition Scout | Monitors rival teams for form changes, momentum shifts, player breakouts | 30 min |
+| Squad Form Monitor | Tracks squad players via ML regression, alerts on anomalies | 15 min |
+| Match Preparation | Auto-generates scouting reports using Random Forest predictions | 60 min |
+
+**ML Engine (`backend/services/mlEngine.js`):**
+
+| Algorithm | Type | Description |
+|-----------|------|-------------|
+| Match Prediction | Random Forest (200 trees) | 80/20 chronological train/test split. 6 features: ELO diff, form diff, H2H rate, momentum diff, venue win rate, role-weighted form. Reports held-out test accuracy. |
+| Player Forecasting | Weighted Linear Regression | Exponential decay (0.85) on match history. Predicts next-match fantasy points with 95% confidence intervals. Confidence adjusted for R-squared and sample size. |
+| Squad Optimizer | Constrained Knapsack | Maximizes ML-predicted fantasy points within 100-credit budget. Role constraints (1 WK, 3 BAT, 3 BOWL, 1 ALL). Auto-selects captain/VC. |
+| Anomaly Detection | Z-Score Analysis | Rolling window z-score. BREAKOUT (z > 2.0), COLLAPSE (z < -2.0), with percentile ranking via normal CDF approximation. |
+
+**Performance:** All DB queries batched into 4 queries via `loadBatchData()`. ELO, records, momentum, H2H calculated in-memory. Model pre-trained on server startup.
+
+**Security:** Franchise-scoped auth (one franchise cannot view/stop another's agents). Agent IDs generated server-side. Type validated against enum. Reports cleaned up on agent stop.
 
 ---
 
@@ -1212,19 +1233,49 @@ Three on-chain fee streams. All protocol-level and fully transparent.
 
 ## Security & Audit Notes
 
-### Smart Contract Security Score: 8.2/10
+### Smart Contract Security
 
 | Protection | Status | Contracts |
 |-----------|--------|-----------|
 | ReentrancyGuard | Implemented | ExecutionGateway, FantasyModule, WireTrustNFT |
+| Pausable (Emergency Stop) | Implemented | ExecutionGateway, FantasyModule, PredictionModule |
 | Nonce Replay Protection | Implemented | ExecutionGateway (consumed before external call) |
 | Forbidden Targets | Implemented | ExecutionGateway (registry, policy, reputation, self) |
+| Fee After Success Only | Implemented | ExecutionGateway (no fee collected on failed execution) |
 | Pull Pattern | Implemented | FantasyModule (winner claims prize) |
-| Custom Errors | Implemented | All contracts (gas efficient) |
+| Buyer-Initiated NFT Flow | Implemented | WireTrustNFT (listForSale + buyToken, not seller-initiated) |
+| Participant Cap | Implemented | FantasyModule (ABSOLUTE_MAX_PARTICIPANTS = 200) |
+| Paginated Resolution | Implemented | PredictionModule (startIndex/endIndex to avoid gas limits) |
+| Zero Player ID Validation | Implemented | FantasyModule (rejects squads with player ID 0) |
+| Event Timestamp Cap | Implemented | WireTrustNFT (MAX_EVENT_HORIZON = 730 days) |
+| Past Start Time Rejection | Implemented | MatchOracle (rejects startTime <= block.timestamp) |
 | Soulbound Enforcement | Implemented | WireTrustNFT (`_update()` single chokepoint) |
-| Anti-Scalping | Implemented | WireTrustNFT (110% resale cap on tickets) |
-| Integer Safety | Implemented | Solidity 0.8.27 + unchecked only on safe ops |
+| Anti-Scalping | Implemented | WireTrustNFT (110% resale cap, validated at listing time) |
+| Custom Errors | Implemented | All contracts (gas efficient) |
 | Storage Packing | Implemented | 3-slot BehaviorCheckpoint, 2-slot Policy |
+| Emergency Withdraw | Implemented | FantasyModule (recover stuck contest ETH) |
+
+### Backend Security
+
+| Protection | Status |
+|-----------|--------|
+| Rate Limiting | 3-tier: strict (5/15min), moderate (30/min), relaxed (100/min) |
+| CSRF Protection | X-Requested-With header required on mutations (same-origin only) |
+| CORS Restriction | Configurable via CORS_ORIGINS env (not wildcard) |
+| Input Validation | Winner string validated against DB teams, agent type against enum |
+| Atomic Faucet | INSERT ON CONFLICT prevents race condition double-funding |
+| Error Handling | Global error handler + 404 route + no empty catch blocks |
+| Franchise Agent Auth | Franchise-scoped (one franchise cannot access another's agents) |
+
+### 203 Passing Tests
+
+| File | Coverage |
+|------|----------|
+| CoreContracts.test.js | All 5 core contracts (57 tests) |
+| Modules.test.js | Predictions, Fantasy, NFTs (77 tests) |
+| MatchOracle.test.js | Oracle auth, results, player stats (13 tests) |
+| Integration.test.js | End-to-end protocol workflows (12 tests) |
+| NewFeatures.test.js | Pausable, buyer NFT, pagination, ML features (30 tests) |
 
 ### Gas Optimizations
 
@@ -1243,27 +1294,48 @@ Three on-chain fee streams. All protocol-level and fully transparent.
 
 ---
 
-## Quick Start
+## Quick Start (Development)
 
 ```bash
-# 1. Deploy contracts
-cd e:\wiretrust
-npx hardhat run scripts/deploy.js --network wirefluid
-
-# 2. Start backend
-cd backend
+# 1. Install dependencies
 npm install
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# 2. Compile contracts
+npx hardhat compile
+
+# 3. Run tests (203 should pass)
+npx hardhat test
+
+# 4. Setup database
+cd backend
+cp .env.example .env     # Fill in DATABASE_URL, PRIVATE_KEY, etc.
 node db/migrate.js       # Create tables
 node db/seedPSLHistory.js # Seed 90 historical matches
-node index.js            # Start server on port 3001
+npm start                # Backend on port 3001
 
-# 3. Start frontend
-cd frontend
-npm install
+# 5. Start frontend
+cd ../frontend
+cp .env.example .env     # Fill in VITE_WEB3AUTH_CLIENT_ID
 npm run dev              # Vite dev server on port 5173
 ```
 
+## User Journey
+
+| Route | Who | What |
+|-------|-----|------|
+| `/` | Visitors | Landing page: 4 ways to play, 6-factor intelligence, PSL teams, FAQ |
+| `/welcome` | New users | Onboarding: Google Sign-In or MetaMask |
+| `/dashboard` | Connected fans | Personal stats, agents, quick actions |
+| `/predict` | Fans | Free match predictions (earn points, streaks) |
+| `/squad-challenge` | Fans | Free fantasy cricket (sponsor-funded prizes) |
+| `/marketplace` | Fans | NFT challenges and rewards |
+| `/agents` | Fans (unlocked) | Personal AI agent (after 5 predictions + 1 squad + 100 points) |
+| `/franchise/agents` | Franchise admins | ML-powered AI intelligence (Scout, Form Monitor, Match Prep) |
+| `/admin` | Super admin | Protocol management |
+
 ---
 
-*WireTrust Protocol v1.0.0 - Updated 2026-03-24*
-*Built on WireFluid Blockchain (Chain 92533) | 9 Smart Contracts | 29 Pages | 70+ API Endpoints*
+*WireTrust Protocol v2.0.0 - Updated 2026-04-15*
+*Built on WireFluid Blockchain (Chain 92533) | 9 Smart Contracts | 203 Tests | 30 Pages | 80+ API Endpoints | Random Forest ML*
