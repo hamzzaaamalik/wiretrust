@@ -265,6 +265,7 @@ export default function Predictions() {
       </div>
 
       <PageGuide
+        id="predictions"
         title="How Predictions Work"
         steps={[
           { icon: Target, title: 'Pick a Match', desc: 'Choose an upcoming PSL match. Select your prediction type: Match Winner, Top Scorer or Total Runs (Over/Under).' },

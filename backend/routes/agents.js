@@ -120,6 +120,66 @@ router.get("/owner/:address", async (req, res) => {
   }
 });
 
+// Check if user is eligible to deploy an AI agent (achievement-based unlock)
+// Requirements: 5+ predictions, 1+ squad joined, 100+ prediction points
+// Limit: 1 agent per fan
+router.get("/eligibility/:address", async (req, res) => {
+  try {
+    const { contracts } = req.app.locals;
+    const address = req.params.address;
+
+    const [stats, ownedAgents] = await Promise.all([
+      contracts.predictionModule.getUserStats(address),
+      contracts.agentRegistry.getAgentsByOwner(address),
+    ]);
+
+    // Check squad participation via DB (faster than iterating all contests on-chain)
+    let squadsJoined = 0;
+    const { db } = req.app.locals;
+    if (db) {
+      try {
+        const { rows } = await db.query(
+          `SELECT COUNT(DISTINCT contest_id) AS count FROM contest_entries WHERE address = $1`,
+          [address.toLowerCase()]
+        );
+        squadsJoined = Number(rows[0]?.count || 0);
+      } catch {
+        // Fallback: check a few contests on-chain
+        try {
+          const contestCount = await contracts.fantasyModule.contestCount();
+          for (let i = 1; i <= Math.min(Number(contestCount), 20); i++) {
+            try {
+              const squad = await contracts.fantasyModule.getSquad(i, address);
+              if (squad.owner && squad.owner !== '0x0000000000000000000000000000000000000000') squadsJoined++;
+            } catch { /* skip */ }
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    const totalPredictions = Number(stats.totalPredictions || 0);
+    const totalPoints = Number(stats.totalPoints || 0);
+    const agentCount = ownedAgents.length;
+
+    const requirements = {
+      predictions: { required: 5, current: totalPredictions, met: totalPredictions >= 5 },
+      squads: { required: 1, current: squadsJoined, met: squadsJoined >= 1 },
+      points: { required: 100, current: totalPoints, met: totalPoints >= 100 },
+      agentLimit: { max: 1, current: agentCount, met: agentCount < 1 },
+    };
+
+    const eligible = requirements.predictions.met
+      && requirements.squads.met
+      && requirements.points.met
+      && requirements.agentLimit.met;
+
+    res.json({ eligible, requirements, agentCount });
+  } catch (err) {
+    console.error("Check agent eligibility failed:", err.message);
+    res.status(500).json({ error: "Failed to check eligibility", details: err.message });
+  }
+});
+
 router.get("/reputation/:agentId", async (req, res) => {
   try {
     const { contracts } = req.app.locals;

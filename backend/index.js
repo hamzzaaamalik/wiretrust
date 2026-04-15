@@ -129,6 +129,17 @@ app.use("/api/health", relaxedLimiter, require("./routes/health"));
 app.use("/api/admin", moderateLimiter, require("./routes/admin"));
 app.use("/api/franchise-portal", relaxedLimiter, require("./routes/franchise-portal"));
 
+// 404 handler for unknown API routes
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+// Global error handler — catches unhandled errors from any route
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err.message);
+  res.status(500).json({ error: "Internal server error" });
+});
+
 // ---------------------------------------------------------------------------
 // HTTP + WebSocket server
 // ---------------------------------------------------------------------------
@@ -208,6 +219,13 @@ server.listen(PORT, async () => {
   agentRunner.resumeAgents(contracts, addresses, db).catch((err) =>
     console.warn("[startup] Agent resume failed:", err.message)
   );
+
+  // Pre-train ML model in background on startup
+  const mlEngine = require("./services/mlEngine");
+  mlEngine.pretrainModel(db).then((result) => {
+    if (result) console.log(`  ML model pre-trained: ${result.samples} samples, ${result.accuracy}% accuracy`);
+    else console.log("  ML model: not enough data to train (need 10+ completed matches)");
+  }).catch((err) => console.warn("[startup] ML pre-train failed:", err.message));
 });
 
 // ---------------------------------------------------------------------------

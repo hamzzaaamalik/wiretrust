@@ -531,6 +531,7 @@ export default function Fantasy() {
       </div>
 
       <PageGuide
+        id="fantasy"
         title="How Squad Challenge Works"
         steps={[
           { icon: Users, title: 'Pick a Contest', desc: 'Each match has open contests with sponsor-funded prize pools. Browse by match and check the pool size.' },

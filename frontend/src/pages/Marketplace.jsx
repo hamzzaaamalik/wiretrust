@@ -328,6 +328,7 @@ export default function Marketplace() {
       </div>
 
       <PageGuide
+        id="marketplace"
         title="How Challenges Work"
         steps={[
           { icon: Target, title: 'Browse Challenges', desc: 'The Pindiz franchise sets on-chain targets: predict matches, join squad contests, deploy agents or build streaks.' },

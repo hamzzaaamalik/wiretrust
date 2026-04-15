@@ -407,4 +407,153 @@ describe("New Feature Tests", function () {
       expect(balanceBefore - balanceAfter).to.be.closeTo(gasUsed, ethers.parseEther("0.001"));
     });
   });
+
+  // ── Pausable: ExecutionGateway ───────────────────────────────────
+  describe("Pausable - ExecutionGateway", function () {
+    it("should block execute() when paused", async function () {
+      const { fan1, gateway, agentRegistry, policyEngine, target } = await loadFixture(deployFixture);
+
+      await agentRegistry.connect(fan1).createAgent("Bot", "PREDICTION", 1);
+      const targetAddr = await target.getAddress();
+      const actionBytes = ethers.keccak256(ethers.toUtf8Bytes("doSomething()"));
+      const expiry = (await time.latest()) + 86400 * 30;
+      await policyEngine.connect(fan1).setPolicy(
+        1, ethers.parseEther("1"), ethers.parseEther("5"),
+        1, expiry, [targetAddr], [actionBytes], 5
+      );
+
+      // Pause
+      await gateway.pause();
+
+      const nonce = ethers.encodeBytes32String("nonce1");
+      await expect(
+        gateway.connect(fan1).execute(
+          1, targetAddr, actionBytes, target.interface.encodeFunctionData("doSomething"), 0, nonce
+        )
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+    });
+
+    it("should allow execute() after unpause", async function () {
+      const { fan1, gateway, agentRegistry, policyEngine, target } = await loadFixture(deployFixture);
+
+      await agentRegistry.connect(fan1).createAgent("Bot", "PREDICTION", 1);
+      const targetAddr = await target.getAddress();
+      const actionBytes = ethers.keccak256(ethers.toUtf8Bytes("doSomething()"));
+      const expiry = (await time.latest()) + 86400 * 30;
+      await policyEngine.connect(fan1).setPolicy(
+        1, ethers.parseEther("1"), ethers.parseEther("5"),
+        1, expiry, [targetAddr], [actionBytes], 5
+      );
+
+      await gateway.pause();
+      await gateway.unpause();
+
+      const nonce = ethers.encodeBytes32String("nonce1");
+      const result = await gateway.connect(fan1).execute(
+        1, targetAddr, actionBytes, target.interface.encodeFunctionData("doSomething"), 0, nonce
+      );
+      expect(result).to.not.be.reverted;
+    });
+
+    it("should only allow owner to pause", async function () {
+      const { fan1, gateway } = await loadFixture(deployFixture);
+      await expect(gateway.connect(fan1).pause()).to.be.reverted;
+    });
+
+    it("should only allow owner to unpause", async function () {
+      const { fan1, gateway } = await loadFixture(deployFixture);
+      await gateway.pause();
+      await expect(gateway.connect(fan1).unpause()).to.be.reverted;
+    });
+  });
+
+  // ── Pausable: FantasyModule ──────────────────────────────────────
+  describe("Pausable - FantasyModule", function () {
+    it("should block joinContest when paused", async function () {
+      const { fantasyModule, matchOracle, fan1, sponsor } = await loadFixture(deployFixture);
+
+      const startTime = (await time.latest()) + 86400;
+      await matchOracle.createMatch(1, "A", "B", startTime);
+      await fantasyModule.createContest(1, 1, 10);
+      await fantasyModule.connect(sponsor).fundContest(1, { value: ethers.parseEther("1") });
+
+      await fantasyModule.pause();
+
+      const squad = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+      await expect(
+        fantasyModule.connect(fan1).joinContest(1, squad, 1, 2, 95)
+      ).to.be.revertedWithCustomError(fantasyModule, "EnforcedPause");
+    });
+
+    it("should block fundContest when paused", async function () {
+      const { fantasyModule, matchOracle, sponsor } = await loadFixture(deployFixture);
+
+      const startTime = (await time.latest()) + 86400;
+      await matchOracle.createMatch(1, "A", "B", startTime);
+      await fantasyModule.createContest(1, 1, 10);
+
+      await fantasyModule.pause();
+
+      await expect(
+        fantasyModule.connect(sponsor).fundContest(1, { value: ethers.parseEther("1") })
+      ).to.be.revertedWithCustomError(fantasyModule, "EnforcedPause");
+    });
+
+    it("should allow operations after unpause", async function () {
+      const { fantasyModule, matchOracle, fan1, sponsor } = await loadFixture(deployFixture);
+
+      const startTime = (await time.latest()) + 86400;
+      await matchOracle.createMatch(1, "A", "B", startTime);
+      await fantasyModule.createContest(1, 1, 10);
+
+      await fantasyModule.pause();
+      await fantasyModule.unpause();
+
+      await fantasyModule.connect(sponsor).fundContest(1, { value: ethers.parseEther("1") });
+      const squad = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+      await fantasyModule.connect(fan1).joinContest(1, squad, 1, 2, 95);
+
+      // Verify it worked
+      const participants = await fantasyModule.getContestParticipants(1);
+      expect(participants.length).to.equal(1);
+    });
+  });
+
+  // ── Pausable: PredictionModule ───────────────────────────────────
+  describe("Pausable - PredictionModule", function () {
+    it("should block createPrediction when paused", async function () {
+      const { predictionModule, matchOracle } = await loadFixture(deployFixture);
+
+      const startTime = (await time.latest()) + 86400;
+      await matchOracle.createMatch(1, "A", "B", startTime);
+
+      await predictionModule.pause();
+
+      const typeBytes = ethers.encodeBytes32String("MATCH_WINNER");
+      const outcome = ethers.encodeBytes32String("A_WIN");
+      const [,,, , fan1] = await ethers.getSigners();
+
+      await expect(
+        predictionModule.connect(fan1).createPrediction(1, 1, typeBytes, outcome)
+      ).to.be.revertedWithCustomError(predictionModule, "EnforcedPause");
+    });
+
+    it("should allow createPrediction after unpause", async function () {
+      const { predictionModule, matchOracle } = await loadFixture(deployFixture);
+
+      const startTime = (await time.latest()) + 86400;
+      await matchOracle.createMatch(1, "A", "B", startTime);
+
+      await predictionModule.pause();
+      await predictionModule.unpause();
+
+      const typeBytes = ethers.encodeBytes32String("MATCH_WINNER");
+      const outcome = ethers.encodeBytes32String("A_WIN");
+      const [,,, , fan1] = await ethers.getSigners();
+
+      await predictionModule.connect(fan1).createPrediction(1, 1, typeBytes, outcome);
+      const count = await predictionModule.predictionCount();
+      expect(Number(count)).to.equal(1);
+    });
+  });
 });

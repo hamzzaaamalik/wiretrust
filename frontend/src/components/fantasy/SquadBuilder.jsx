@@ -186,7 +186,13 @@ export default function SquadBuilder({ players = [], onSubmit, maxCredits = 100 
           <h3 className="mb-3 text-lg font-bold text-gray-100">Your Squad</h3>
 
           {selectedPlayers.length === 0 && (
-            <p className="text-sm text-gray-500">Select players from the grid to build your squad.</p>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500">Select players from the grid to build your squad.</p>
+              <div className="text-2xs text-gray-600 space-y-1">
+                <p>Captain earns <span className="text-yellow-400 font-medium">2x points</span></p>
+                <p>Vice-Captain earns <span className="text-yellow-400 font-medium">1.5x points</span></p>
+              </div>
+            </div>
           )}
 
           <div className="flex flex-col gap-2">

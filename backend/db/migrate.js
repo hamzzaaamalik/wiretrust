@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS players (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_players_team ON players (team);
+CREATE INDEX IF NOT EXISTS idx_players_active ON players (active);
+
 -- Match players: which players are in which match
 CREATE TABLE IF NOT EXISTS match_players (
   match_id      INTEGER NOT NULL REFERENCES matches(match_id),
@@ -113,6 +116,7 @@ CREATE TABLE IF NOT EXISTS player_match_stats (
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (match_id, player_id)
 );
+CREATE INDEX IF NOT EXISTS idx_pms_player ON player_match_stats (player_id);
 
 -- Player aggregate stats columns
 ALTER TABLE players ADD COLUMN IF NOT EXISTS matches_played INTEGER DEFAULT 0;
@@ -145,6 +149,19 @@ CREATE TABLE IF NOT EXISTS active_agents (
 );
 
 -- Contest sponsors: sponsor branding per contest
+-- Franchise agent reports: AI agent findings and alerts
+CREATE TABLE IF NOT EXISTS franchise_agent_reports (
+  id            SERIAL PRIMARY KEY,
+  agent_id      VARCHAR(100) NOT NULL,
+  franchise_id  INTEGER NOT NULL DEFAULT 1,
+  type          VARCHAR(30) NOT NULL DEFAULT 'info',     -- cycle | alert | insight | report | scouting_report | error | status
+  severity      VARCHAR(20) NOT NULL DEFAULT 'info',     -- info | success | warning | error
+  title         VARCHAR(500) NOT NULL,
+  data          JSONB DEFAULT '{}',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_franchise_reports_agent ON franchise_agent_reports (agent_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS contest_sponsors (
   contest_id    INTEGER PRIMARY KEY,
   sponsor_name  VARCHAR(200) NOT NULL,

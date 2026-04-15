@@ -1,6 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Link } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
 import CreateAgent from './pages/CreateAgent';
@@ -34,6 +35,18 @@ import FranchiseChallenges from './pages/franchise/FranchiseChallenges';
 import FranchiseLive from './pages/franchise/FranchiseLive';
 import FranchiseContests from './pages/franchise/FranchiseContests';
 import FranchiseAnalytics from './pages/franchise/FranchiseAnalytics';
+import FranchiseAgents from './pages/franchise/FranchiseAgents';
+
+function NotFound() {
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
+      <div className="text-6xl font-bold text-zinc-700 mb-4">404</div>
+      <h2 className="text-xl font-semibold text-zinc-300 mb-2">Page not found</h2>
+      <p className="text-sm text-zinc-500 mb-6">The page you are looking for does not exist.</p>
+      <Link to="/" className="btn-primary px-5 py-2 text-sm inline-block">Back to Home</Link>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -42,7 +55,8 @@ export default function App() {
       <Navbar />
       <main className="relative z-10 flex-1 max-w-7xl mx-auto w-full px-4 lg:px-6 py-8 pb-28 md:pb-8">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/welcome" element={<Onboarding />} />
           <Route path="/agents" element={<AgentsHub />} />
           <Route path="/create-agent" element={<CreateAgent />} />
@@ -76,7 +90,12 @@ export default function App() {
             <Route path="live" element={<FranchiseLive />} />
             <Route path="contests" element={<FranchiseContests />} />
             <Route path="analytics" element={<FranchiseAnalytics />} />
+            <Route path="agents" element={<FranchiseAgents />} />
+            <Route path="agents/create" element={<CreateAgent />} />
           </Route>
+
+          {/* 404 catch-all */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <Footer />

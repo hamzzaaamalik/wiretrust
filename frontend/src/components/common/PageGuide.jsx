@@ -10,8 +10,18 @@ import { ChevronDown, HelpCircle } from 'lucide-react';
  *   tips     - array of strings (optional quick tips)
  *   defaultOpen - start expanded (default: false)
  */
-export default function PageGuide({ title = 'How It Works', steps = [], tips = [], defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+export default function PageGuide({ title = 'How It Works', steps = [], tips = [], defaultOpen = false, id = '' }) {
+  // Auto-open on first visit per page. Once user has seen it, stay collapsed.
+  const storageKey = id ? `wt_guide_${id}` : '';
+  const hasSeenBefore = storageKey && localStorage.getItem(storageKey);
+  const [open, setOpen] = useState(hasSeenBefore ? false : (defaultOpen || !hasSeenBefore));
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    // Once user interacts, remember they've seen this guide
+    if (storageKey && !hasSeenBefore) localStorage.setItem(storageKey, '1');
+  }
 
   if (steps.length === 0 && tips.length === 0) return null;
 
@@ -19,7 +29,7 @@ export default function PageGuide({ title = 'How It Works', steps = [], tips = [
     <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/50 overflow-hidden animate-fade-in">
       {/* Toggle header */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-800/30 transition-colors"
       >
         <div className="flex items-center gap-2.5">

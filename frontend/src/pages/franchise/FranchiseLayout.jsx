@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
 import {
-  LayoutDashboard, Calendar, Users2, Trophy, Radio, ChevronLeft, Building2, Swords, BarChart3
+  LayoutDashboard, Calendar, Users2, Trophy, Radio, ChevronLeft, Building2, Swords, BarChart3, Bot
 } from 'lucide-react';
 
 const LINKS = [
@@ -13,6 +13,7 @@ const LINKS = [
   { to: '/franchise/live', label: 'Live Control', icon: Radio },
   { to: '/franchise/contests', label: 'Contests', icon: Swords },
   { to: '/franchise/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/franchise/agents', label: 'AI Agents', icon: Bot },
 ];
 
 export default function FranchiseLayout() {
@@ -63,7 +64,7 @@ export default function FranchiseLayout() {
       {/* Sidebar */}
       <aside className="hidden lg:block w-56 shrink-0">
         <div className="sticky top-20 space-y-1">
-          <NavLink to="/" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-sm mb-4 transition-colors">
+          <NavLink to="/dashboard" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-sm mb-4 transition-colors">
             <ChevronLeft size={14} /> Back to App
           </NavLink>
           <div className="flex items-center gap-2 mb-4 px-3">

@@ -2,14 +2,19 @@ import { Buffer } from 'buffer';
 if (!globalThis.Buffer) globalThis.Buffer = Buffer;
 
 // Global fetch interceptor — injects X-Requested-With header for CSRF protection.
-// This ensures ALL API calls from the frontend include the required header.
+// Only adds header to same-origin API calls (not external services like Web3Auth).
 const _originalFetch = window.fetch;
 window.fetch = function (url, options = {}) {
-  const headers = new Headers(options.headers || {});
-  if (!headers.has('X-Requested-With')) {
-    headers.set('X-Requested-With', 'XMLHttpRequest');
+  const urlStr = typeof url === 'string' ? url : url?.url || '';
+  const isSameOrigin = urlStr.startsWith('/') || urlStr.startsWith(window.location.origin);
+  if (isSameOrigin) {
+    const headers = new Headers(options.headers || {});
+    if (!headers.has('X-Requested-With')) {
+      headers.set('X-Requested-With', 'XMLHttpRequest');
+    }
+    return _originalFetch.call(this, url, { ...options, headers });
   }
-  return _originalFetch.call(this, url, { ...options, headers });
+  return _originalFetch.call(this, url, options);
 };
 
 import React from 'react';

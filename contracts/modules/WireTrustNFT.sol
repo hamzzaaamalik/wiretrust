@@ -361,12 +361,18 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
     /// @notice Seller lists a token for sale at a specific price.
     /// @param tokenId The token to list.
     /// @param price The asking price in native token units.
+    /// @notice List a token for sale at a specified price. Only the token owner
+    ///         may call. Validates the token is not soulbound, is valid, and
+    ///         the price does not exceed the resale cap (if applicable).
+    /// @param tokenId The token to list.
+    /// @param price The asking price in native token units.
     function listForSale(uint256 tokenId, uint256 price) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
 
         NFTMetadata storage metadata = nftData[tokenId];
         if (metadata.soulbound) revert SoulboundToken();
         if (metadata.status != TokenStatus.VALID) revert TokenNotValid();
+        if (metadata.eventTimestamp > 0 && block.timestamp >= metadata.eventTimestamp) revert TokenExpired();
         if (metadata.maxResalePrice > 0 && price > metadata.maxResalePrice) {
             revert ExceedsResalePriceCap(price, metadata.maxResalePrice);
         }
@@ -374,14 +380,19 @@ contract WireTrustNFT is ERC721, Ownable, ReentrancyGuard {
         listingPrice[tokenId] = price;
     }
 
-    /// @notice Cancel a listing.
+    /// @notice Cancel an active listing. Only the current token owner may call.
     /// @param tokenId The token to delist.
     function cancelListing(uint256 tokenId) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         delete listingPrice[tokenId];
     }
 
-    /// @notice Buyer purchases a listed token. Sends msg.value to seller minus protocol fee.
+    /// @notice Buyer purchases a listed token. The buyer calls this function with
+    ///         msg.value equal to the listing price. The protocol fee (2.5%) is
+    ///         deducted and sent to the treasury; the remainder goes to the seller.
+    ///         The listing is cleared and the token is transferred to the buyer.
+    ///         All transfer rules (soulbound, max transfers, expiry) are enforced
+    ///         via the _update hook.
     /// @param tokenId The token to buy.
     function buyToken(uint256 tokenId) external payable nonReentrant {
         uint256 price = listingPrice[tokenId];

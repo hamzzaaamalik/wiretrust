@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSelector, useDispatch } from 'react-redux';
@@ -107,309 +107,7 @@ function LiveMatchBanner() {
   );
 }
 
-/* ═══════════════════════════════════════════
-   SCROLLING ACTIVITY TICKER
-   ═══════════════════════════════════════════ */
-function ActivityTicker() {
-  const items = [
-    { text: 'Babar Azam smashes 78 off 55 balls. Update your squad now', color: 'text-emerald-400' },
-    { text: 'Pindiz vs Karachi Kings: 5,000 WIRE sponsor pool live', color: 'text-secondary' },
-    { text: 'Shaheen Afridi Player Card minted on WireFluid', color: 'text-accent' },
-    { text: '72% of fans predict Pindiz to win Match 1', color: 'text-primary-light' },
-    { text: 'New challenge: Predict 3 matches correctly to earn Oracle badge', color: 'text-accent' },
-    { text: 'VIP Match Day Experience now available as a reward', color: 'text-secondary' },
-  ];
-
-  return (
-    <div className="relative overflow-hidden py-2.5 border-y border-zinc-800/40 animate-fade-in">
-      <div className="flex animate-scroll-x">
-        {[...items, ...items].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 shrink-0 px-5">
-            <span className={`w-1 h-1 rounded-full ${item.color.replace('text-', 'bg-')}`} />
-            <span className={`text-xs font-medium whitespace-nowrap ${item.color}`}>{item.text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   HERO SECTION (Not Connected)
-   ═══════════════════════════════════════════ */
-function HeroSection() {
-  return (
-    <div className="relative overflow-hidden rounded-3xl border border-zinc-800/40 animate-fade-in">
-      {/* Layered background effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.15] via-dark-bg to-secondary/[0.10]" />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] -translate-y-1/3 translate-x-1/4 animate-pulse-glow" />
-      <div className="absolute bottom-0 left-0 w-80 h-80 bg-secondary/8 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
-      <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-accent/5 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute inset-0 grid-pattern opacity-30" />
-
-      {/* Floating orbs */}
-      <div className="absolute top-20 right-20 w-3 h-3 rounded-full bg-primary/30 animate-float hidden lg:block" />
-      <div className="absolute top-40 right-40 w-2 h-2 rounded-full bg-secondary/40 animate-float hidden lg:block" style={{ animationDelay: '1s' }} />
-      <div className="absolute bottom-20 right-32 w-2.5 h-2.5 rounded-full bg-accent/30 animate-float hidden lg:block" style={{ animationDelay: '2s' }} />
-
-      <div className="relative px-6 sm:px-10 lg:px-14 py-14 sm:py-20 flex flex-col lg:flex-row items-center gap-10">
-        {/* Left text */}
-        <div className="flex-1 max-w-xl">
-          <div className="inline-flex items-center gap-2 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700/40 rounded-full px-3.5 py-1.5 mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
-            <span className="text-2xs font-medium text-zinc-400">Live on WireFluid Testnet</span>
-            <span className="text-2xs text-zinc-600">|</span>
-            <span className="text-2xs font-medium text-secondary">Chain 92533</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-[1.15] mb-5">
-            AI-Powered Fan Economy,{' '}
-            <span className="text-gradient">On-Chain</span>
-            <span className="text-zinc-600">.</span>
-          </h1>
-
-          <p className="text-zinc-400 text-base sm:text-lg leading-relaxed mb-8 max-w-lg">
-            Deploy AI agents, predict match outcomes, build squads and earn NFT rewards. Every action is policy-enforced, every achievement is permanent.
-            <span className="text-zinc-300 font-medium"> Free to play. Halal compliant. Powered by WireFluid.</span>
-          </p>
-
-          <div className="flex flex-wrap gap-3 mb-8">
-            <Link to="/welcome" className="btn-primary text-sm py-3 px-7 flex items-center gap-2.5 shadow-glow-sm">
-              <Zap size={16} />
-              Start Playing
-            </Link>
-            <Link to="/learn" className="btn-secondary text-sm py-3 px-7 flex items-center gap-2.5">
-              <BookOpen size={16} />
-              How It Works
-            </Link>
-          </div>
-
-          {/* Trust signals */}
-          <div className="flex flex-wrap items-center gap-5">
-            {[
-              { icon: Shield, label: 'Halal Compliant', color: 'text-secondary' },
-              { icon: Gift, label: 'Free to Play', color: 'text-accent' },
-              { icon: CheckCircle2, label: 'On-Chain Verified', color: 'text-primary-light' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-2">
-                <item.icon size={13} className={item.color} />
-                <span className="text-xs text-zinc-500 font-medium">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right visual - Floating cards preview */}
-        <div className="relative w-72 h-64 shrink-0 hidden lg:block">
-          {/* Card 1 - Agent */}
-          <div className="absolute top-0 left-0 w-48 bg-zinc-900/90 backdrop-blur-xl border border-zinc-700/50 rounded-2xl p-4 shadow-float animate-float" style={{ animationDelay: '0s' }}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
-                <Monitor size={16} className="text-primary-light" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-white">Pindiz-Agent-Alpha</p>
-                <p className="text-2xs text-zinc-500">SQUAD Agent</p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-md bg-emerald-500/15 flex items-center justify-center">
-                  <span className="text-2xs font-bold text-emerald-400">75</span>
-                </div>
-                <span className="text-2xs text-emerald-400 font-medium">SAFE</span>
-              </div>
-              <span className="text-2xs text-zinc-600">Score</span>
-            </div>
-          </div>
-
-          {/* Card 2 - Prediction */}
-          <div className="absolute top-16 right-0 w-44 bg-zinc-900/90 backdrop-blur-xl border border-zinc-700/50 rounded-2xl p-3.5 shadow-float animate-float" style={{ animationDelay: '1.5s' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <Target size={14} className="text-primary-light" />
-              <span className="text-2xs font-semibold text-white">Prediction</span>
-              <span className="badge-free text-2xs ml-auto">FREE</span>
-            </div>
-            <p className="text-2xs text-zinc-400">Pindiz to win</p>
-            <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full w-[68%] bg-gradient-to-r from-primary to-secondary rounded-full" />
-            </div>
-            <p className="text-2xs text-zinc-600 mt-1">68% community pick</p>
-          </div>
-
-          {/* Card 3 - NFT */}
-          <div className="absolute bottom-0 left-6 w-40 bg-zinc-900/90 backdrop-blur-xl border border-accent/20 rounded-2xl p-3 shadow-float animate-float" style={{ animationDelay: '0.8s' }}>
-            <div className="w-full h-16 rounded-xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center mb-2">
-              <Star size={20} className="text-accent" />
-            </div>
-            <p className="text-2xs font-semibold text-white">Babar Azam Gold</p>
-            <p className="text-2xs text-accent">3,000 WIRE</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   HOW IT WORKS (3 Steps)
-   ═══════════════════════════════════════════ */
-function HowItWorks() {
-  const steps = [
-    {
-      num: '01',
-      title: 'Connect & Get Credits',
-      desc: 'Sign in with Google or MetaMask. Receive 1,000 free WIRE credits on testnet. No crypto knowledge required.',
-      icon: Wallet,
-      color: 'from-primary/20 to-primary/5',
-      iconColor: 'text-primary-light',
-    },
-    {
-      num: '02',
-      title: 'Deploy AI Agents',
-      desc: 'Create autonomous AI agents that predict matches and build squads. Every action passes through 8 on-chain policy checks with reputation scoring.',
-      icon: Monitor,
-      color: 'from-secondary/20 to-secondary/5',
-      iconColor: 'text-secondary',
-    },
-    {
-      num: '03',
-      title: 'Earn & Collect',
-      desc: 'Predictions earn points. Squad challenges win sponsor prizes. Complete challenges for NFT badges, tickets, collectibles & merch.',
-      icon: Trophy,
-      color: 'from-accent/20 to-accent/5',
-      iconColor: 'text-accent',
-    },
-  ];
-
-  return (
-    <div className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-white mb-1.5">How It Works</h2>
-        <p className="text-sm text-zinc-500">Get started in under 2 minutes</p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {steps.map((step, i) => (
-          <div
-            key={step.num}
-            className="relative group card-surface hover:border-zinc-700/60 transition-all duration-300 overflow-hidden"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-            <div className="relative">
-              {/* Step number */}
-              <span className="text-3xl font-black text-zinc-800/80 absolute -top-1 -right-1 select-none group-hover:text-zinc-700/60 transition-colors">
-                {step.num}
-              </span>
-              <div className={`w-11 h-11 rounded-xl bg-zinc-800/80 group-hover:bg-zinc-800 flex items-center justify-center mb-4 transition-all duration-200 group-hover:scale-110`}>
-                <step.icon size={20} className={step.iconColor} strokeWidth={1.5} />
-              </div>
-              <h3 className="text-sm font-semibold text-white mb-1.5">{step.title}</h3>
-              <p className="text-xs text-zinc-500 leading-relaxed group-hover:text-zinc-400 transition-colors">{step.desc}</p>
-            </div>
-            {/* Connector line (except last) */}
-            {i < 2 && (
-              <div className="hidden sm:block absolute top-1/2 -right-2 w-4 h-px bg-zinc-800 z-10" />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   FEATURE CARDS
-   ═══════════════════════════════════════════ */
-function FeatureCards() {
-  const features = [
-    {
-      icon: Monitor, title: 'AI Agents',
-      desc: 'Deploy autonomous AI agents governed by smart contract policies. They analyze matches, make predictions, and build squads - all policy-enforced on-chain.',
-      to: '/agents', color: 'from-primary/20 to-primary/5', iconColor: 'text-primary-light',
-      badge: 'ON-CHAIN AI', stat: 'Reputation score 0-100',
-    },
-    {
-      icon: Gamepad2, title: 'Squad Challenge',
-      desc: 'Select 11 players, pick your captain and vice-captain, then compete on the leaderboard. Prizes funded by sponsors - fans never pay to play.',
-      to: '/squad-challenge', color: 'from-secondary/20 to-secondary/5', iconColor: 'text-secondary',
-      badge: 'FREE TO PLAY', stat: 'Sponsor-funded prizes',
-    },
-    {
-      icon: Target, title: 'Match Predictions',
-      desc: 'Predict the winner, top scorer or total runs for upcoming matches. Correct calls earn points and consecutive streaks unlock soulbound badges.',
-      to: '/predict', color: 'from-accent/20 to-accent/5', iconColor: 'text-accent',
-      badge: 'EARN POINTS', stat: 'Points only, zero staking',
-    },
-    {
-      icon: Sparkles, title: 'Challenges & Rewards',
-      desc: 'Hit on-chain targets to claim NFT rewards. Match tickets, player collectibles, VIP experiences, achievement badges and authenticated merch.',
-      to: '/marketplace', color: 'from-amber-500/20 to-amber-500/5', iconColor: 'text-amber-400',
-      stat: 'Earned through engagement',
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {features.map((f, i) => (
-        <Link
-          key={f.to}
-          to={f.to}
-          className="group relative overflow-hidden card-interactive p-0 animate-fade-in-up"
-          style={{ animationDelay: `${100 + i * 80}ms` }}
-        >
-          <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-          <div className="relative p-5">
-            <div className="flex items-start justify-between mb-3.5">
-              <div className="w-11 h-11 rounded-xl bg-zinc-800/80 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
-                <f.icon size={20} className={f.iconColor} strokeWidth={1.5} />
-              </div>
-              {f.badge && <span className="badge-free text-2xs">{f.badge}</span>}
-            </div>
-            <h3 className="text-sm font-semibold text-white mb-1.5">{f.title}</h3>
-            <p className="text-xs text-zinc-500 leading-relaxed mb-3 group-hover:text-zinc-400 transition-colors">{f.desc}</p>
-            <div className="flex items-center justify-between">
-              <span className="text-2xs text-zinc-600 font-medium">{f.stat}</span>
-              <div className="flex items-center gap-1 text-xs text-zinc-600 group-hover:text-primary-light transition-colors">
-                <span>Explore</span>
-                <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
-              </div>
-            </div>
-          </div>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   ANIMATED PROTOCOL STATS
-   ═══════════════════════════════════════════ */
-function ProtocolStats({ stats }) {
-  const items = [
-    { key: 'totalAgents', label: 'Agents Deployed', icon: Monitor, color: 'text-primary-light', border: 'border-primary/20', glow: 'shadow-[0_0_20px_rgba(124,58,237,0.08)]' },
-    { key: 'totalPredictions', label: 'Predictions Made', icon: Target, color: 'text-secondary', border: 'border-secondary/20', glow: 'shadow-[0_0_20px_rgba(16,185,129,0.08)]' },
-    { key: 'totalNFTs', label: 'NFTs Minted', icon: Sparkles, color: 'text-accent', border: 'border-accent/20', glow: 'shadow-[0_0_20px_rgba(245,158,11,0.08)]' },
-    { key: 'activeContests', label: 'Live Contests', icon: Flame, color: 'text-red-400', border: 'border-red-500/20', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.08)]' },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-in-up" style={{ animationDelay: '250ms' }}>
-      {items.map((item) => {
-        const { count, ref } = useAnimatedCounter(stats[item.key]);
-        return (
-          <div key={item.key} ref={ref} className={`card-surface text-center py-6 ${item.border} ${item.glow} hover:scale-[1.02] transition-transform duration-200`}>
-            <div className={`w-10 h-10 rounded-xl bg-zinc-800/60 flex items-center justify-center mx-auto mb-3`}>
-              <item.icon size={18} className={item.color} strokeWidth={1.5} />
-            </div>
-            <p className="text-2xl sm:text-3xl font-bold text-white tabular-nums">{count}</p>
-            <p className="text-xs text-zinc-500 mt-1 font-medium">{item.label}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
+/* Landing page components (HeroSection, HowItWorks, etc.) moved to Home.jsx */
 /* ═══════════════════════════════════════════
    STATS BAR (Connected - compact)
    ═══════════════════════════════════════════ */
@@ -814,6 +512,7 @@ function CTABanner() {
    ═══════════════════════════════════════════ */
 export default function Dashboard() {
   const { connected, address, ready } = useWallet();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const walletState = useSelector((s) => s.wallet);
   const [stats, setStats] = useState({ totalAgents: '-', totalPredictions: '-', totalNFTs: '-', activeContests: '-' });
@@ -858,26 +557,12 @@ export default function Dashboard() {
       .catch(() => { setMyAgents([]); setAgentsLoading(false); });
   }, [connected, address, ready]);
 
-  /* ── Not Connected: Full landing page ── */
-  if (!connected) {
-    return (
-      <div className="animate-fade-in space-y-6">
-        <div>
-          <LiveMatchBanner />
-          <ActivityTicker />
-        </div>
-        <HeroSection />
-        <HowItWorks />
-        <FeatureCards />
-        <ProtocolStats stats={stats} />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <AgentLeaderboard />
-          <LiveEventFeed />
-        </div>
-        <CTABanner />
-      </div>
-    );
-  }
+  // Redirect to home if not connected
+  useEffect(() => {
+    if (ready && !connected) navigate('/', { replace: true });
+  }, [connected, ready, navigate]);
+
+  if (!connected) return null;
 
   /* ── Connected: Operational dashboard ── */
   return (
@@ -889,6 +574,7 @@ export default function Dashboard() {
           <MyAgentsSection agents={myAgents} loading={agentsLoading} />
           <QuickActions />
           <PageGuide
+            id="dashboard"
             title="Getting Started"
             steps={[
               { icon: Monitor, title: 'Deploy an AI Agent', desc: 'Create an autonomous AI agent with 8 on-chain policy checks per action. It predicts matches and builds squads on its own.' },

@@ -6,19 +6,23 @@ import { useWallet } from '../../contexts/WalletContext';
 
 const DEPLOYER = import.meta.env.VITE_DEPLOYER_ADDRESS?.toLowerCase();
 
-const navLinks = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/squad-challenge', label: 'Squad Challenge', icon: Users },
-  { to: '/predict', label: 'Predictions', icon: TrendingUp },
-  { to: '/marketplace', label: 'Challenges', icon: Award },
-  { to: '/agents', label: 'AI Agents', icon: Bot },
-  { to: '/learn', label: 'Learn', icon: BookOpen },
-];
+function useNavLinks() {
+  const { connected } = useWallet();
+  return [
+    { to: connected ? '/dashboard' : '/', label: connected ? 'Dashboard' : 'Home', icon: LayoutDashboard },
+    { to: '/squad-challenge', label: 'Squad Challenge', icon: Users },
+    { to: '/predict', label: 'Predictions', icon: TrendingUp },
+    { to: '/marketplace', label: 'Challenges', icon: Award },
+    { to: '/agents', label: 'AI Agents', icon: Bot },
+    { to: '/learn', label: 'Learn', icon: BookOpen },
+  ];
+}
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const { address } = useWallet();
+  const navLinks = useNavLinks();
   const isAdmin = address && DEPLOYER && address.toLowerCase() === DEPLOYER;
   const [isFranchiseAdmin, setIsFranchiseAdmin] = useState(false);
 

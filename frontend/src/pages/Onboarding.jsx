@@ -42,7 +42,7 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (connected) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [connected, navigate]);
 
@@ -53,7 +53,7 @@ export default function Onboarding() {
     setError(null);
     try {
       await connectGoogle();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Sign-in failed');
     } finally {
@@ -66,7 +66,7 @@ export default function Onboarding() {
     setError(null);
     try {
       await connectMetaMask();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'MetaMask connection failed');
     } finally {

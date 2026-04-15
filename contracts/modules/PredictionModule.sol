@@ -24,6 +24,7 @@ contract PredictionModule is Ownable, Pausable {
     error AlreadyResolved();
     error MatchAlreadyStarted();
     error InvalidPredictionType();
+    error InvalidOutcome();
     error MatchPredictionsFull();
 
     // -----------------------------------------------------------------------
@@ -148,6 +149,7 @@ contract PredictionModule is Ownable, Pausable {
         bytes32 predictedOutcome
     ) external whenNotPaused returns (uint256) {
         if (matchId == 0) revert InvalidMatchId();
+        if (predictedOutcome == bytes32(0)) revert InvalidOutcome();
 
         IFranchiseRegistry.Franchise memory franchise = franchiseRegistry.getFranchise(franchiseId);
         if (!franchise.active) revert FranchiseNotActive();
@@ -231,6 +233,9 @@ contract PredictionModule is Ownable, Pausable {
 
     /// @notice Convenience wrapper: resolve all predictions for a match + type in one call.
     /// @dev For matches with fewer than ~500 predictions. Use the paginated version for larger batches.
+    /// @param matchId The match whose predictions to resolve.
+    /// @param predictionType The prediction type to filter by.
+    /// @param actualOutcome The outcome that actually occurred.
     function resolveAllMatchPredictions(
         uint256 matchId,
         bytes32 predictionType,
@@ -274,9 +279,11 @@ contract PredictionModule is Ownable, Pausable {
     // -----------------------------------------------------------------------
 
     /// @notice Pause all prediction creation. Emergency use only.
+    /// @dev Prevents createPrediction() from being called. Resolution and
+    ///      cancellation remain available so existing predictions can still settle.
     function pause() external onlyOwner { _pause(); }
 
-    /// @notice Unpause prediction creation.
+    /// @notice Resume prediction creation after an emergency pause.
     function unpause() external onlyOwner { _unpause(); }
 
     /// @notice Add or remove a prediction type from the whitelist.

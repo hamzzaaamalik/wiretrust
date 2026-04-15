@@ -1236,7 +1236,7 @@ Three on-chain fee streams. All protocol-level and fully transparent.
 
 ### Known Limitations
 
-- **No emergency pause** (Pausable pattern not yet added)
+- **Emergency pause** implemented via OpenZeppelin Pausable on ExecutionGateway, FantasyModule, PredictionModule (owner-only pause/unpause)
 - **Single owner** (Ownable, not AccessControl with roles)
 - **No timelock** on treasury changes
 - **Non-upgradeable** contracts (acceptable for testnet)

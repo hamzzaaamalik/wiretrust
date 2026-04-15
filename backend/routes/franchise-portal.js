@@ -584,4 +584,167 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// ── Franchise AI Agent Endpoints ────────────────────────────────────────
+const franchiseIntel = require('../services/franchiseIntelligence');
+const mlEngine = require('../services/mlEngine');
+const franchiseAgentRunner = require('../services/franchiseAgentRunner');
+
+// Combined intelligence endpoint — single pass, ~5 DB queries total
+router.get('/agents/intelligence', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const teamPattern = await getTeamFilter(req);
+    const myTeam = teamPattern ? teamPattern.replace(/%/g, '') : 'Pindiz';
+
+    // Find next opponent
+    let opponent = req.query.opponent || null;
+    let venue = req.query.venue || null;
+    if (!opponent) {
+      const { rows } = await db.query(
+        `SELECT team1, team2, venue FROM matches
+         WHERE status = 'UPCOMING' AND (team1 ILIKE $1 OR team2 ILIKE $1)
+         ORDER BY start_time ASC LIMIT 1`,
+        [`%${myTeam}%`]
+      );
+      if (rows.length > 0) {
+        opponent = rows[0].team1.toLowerCase().includes(myTeam.toLowerCase()) ? rows[0].team2 : rows[0].team1;
+        venue = venue || rows[0].venue;
+      }
+    }
+
+    // Single-pass: loads ALL data in ~5 queries, runs ALL ML in-memory
+    const result = await mlEngine.runAllIntelligence(db, myTeam, opponent, venue);
+    if (!result) {
+      return res.json({ error: 'Not enough data', myTeam, opponent, venue, scouting: null, opponentWatch: null, ml: { matchPrediction: null, playerForecasts: [], anomalies: null, optimizedSquad: null } });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Intelligence load failed', details: err.message });
+  }
+});
+
+// Pre-match scouting report
+router.get('/agents/scouting', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const teamPattern = await getTeamFilter(req);
+    const myTeam = teamPattern ? teamPattern.replace(/%/g, '') : 'Pindiz';
+    let { opponent, venue } = req.query;
+
+    // Auto-select next opponent if not specified
+    if (!opponent) {
+      const { rows } = await db.query(
+        `SELECT team1, team2, venue FROM matches
+         WHERE status = 'UPCOMING' AND (team1 ILIKE $1 OR team2 ILIKE $1)
+         ORDER BY start_time ASC LIMIT 1`,
+        [`%${myTeam}%`]
+      );
+      if (rows.length > 0) {
+        opponent = rows[0].team1.toLowerCase().includes(myTeam.toLowerCase()) ? rows[0].team2 : rows[0].team1;
+        venue = venue || rows[0].venue;
+      }
+    }
+
+    if (!opponent) return res.status(400).json({ error: 'No upcoming match found. Provide ?opponent= parameter.' });
+
+    const report = await franchiseIntel.generateScoutingReport(db, myTeam, opponent, venue);
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: 'Scouting report failed', details: err.message });
+  }
+});
+
+// Squad form monitoring with alerts
+router.get('/agents/form-alerts', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const teamPattern = await getTeamFilter(req);
+    const myTeam = teamPattern ? teamPattern.replace(/%/g, '') : 'Pindiz';
+    const threshold = Number(req.query.threshold) || 0.15;
+
+    const result = await franchiseIntel.getSquadFormAlerts(db, myTeam, threshold, threshold);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Form alerts failed', details: err.message });
+  }
+});
+
+// Contest optimization intelligence
+router.get('/agents/contest-intelligence', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const result = await franchiseIntel.getContestIntelligence(db, req.franchiseId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Contest intelligence failed', details: err.message });
+  }
+});
+
+// Opponent watch dashboard
+router.get('/agents/opponent-watch', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const teamPattern = await getTeamFilter(req);
+    const myTeam = teamPattern ? teamPattern.replace(/%/g, '') : 'Pindiz';
+
+    const result = await franchiseIntel.getOpponentWatch(db, myTeam);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Opponent watch failed', details: err.message });
+  }
+});
+
+// ── Franchise Agent Management ──────────────────────────────────────────
+
+// List available agent types
+router.get('/agents/types', (req, res) => {
+  res.json(franchiseAgentRunner.getAgentTypes());
+});
+
+// List running agents for this franchise
+router.get('/agents/running', (req, res) => {
+  res.json(franchiseAgentRunner.listAgents(req.franchiseId));
+});
+
+// Get agent status + reports (scoped to franchise)
+router.get('/agents/:agentId/status', (req, res) => {
+  const status = franchiseAgentRunner.getAgentStatus(req.params.agentId);
+  if (status.franchiseId && status.franchiseId !== req.franchiseId) {
+    return res.status(403).json({ error: 'Not authorized to view this agent' });
+  }
+  res.json(status);
+});
+
+// Start a franchise agent
+router.post('/agents/start', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const { type } = req.body;
+
+    // Validate agent type
+    if (!franchiseAgentRunner.AGENT_TYPES[type]) {
+      return res.status(400).json({ error: `Invalid agent type. Must be one of: ${Object.keys(franchiseAgentRunner.AGENT_TYPES).join(', ')}` });
+    }
+
+    const teamPattern = await getTeamFilter(req);
+    const teamName = teamPattern ? teamPattern.replace(/%/g, '') : 'Pindiz';
+
+    // Always generate agentId server-side (never trust client)
+    const id = `franchise-${req.franchiseId}-${type}-${Date.now()}`;
+    const result = franchiseAgentRunner.startAgent(id, type, {
+      teamName,
+      franchiseId: req.franchiseId,
+    }, db);
+
+    res.json({ ...result, agentId: id });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start agent', details: err.message });
+  }
+});
+
+// Stop a franchise agent (scoped to franchise)
+router.post('/agents/:agentId/stop', (req, res) => {
+  res.json(franchiseAgentRunner.stopAgent(req.params.agentId, req.franchiseId));
+});
+
 module.exports = router;

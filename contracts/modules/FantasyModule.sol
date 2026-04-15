@@ -369,9 +369,11 @@ contract FantasyModule is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Pause all contest operations. Emergency use only.
+    /// @dev Prevents joinContest() and fundContest() from being called.
+    ///      Does not block finalizeContest, claimPrize, or cancelContest.
     function pause() external onlyOwner { _pause(); }
 
-    /// @notice Unpause contest operations.
+    /// @notice Resume contest operations after an emergency pause.
     function unpause() external onlyOwner { _unpause(); }
 
     /// @notice Cancels an active contest and refunds the sponsor pool to the caller.
@@ -409,6 +411,26 @@ contract FantasyModule is Ownable, ReentrancyGuard, Pausable {
         (bool sent,) = msg.sender.call{value: prize}("");
         if (!sent) revert TransferFailed();
         emit PrizeClaimed(contestId, msg.sender, prize);
+    }
+
+    /// @notice Emergency withdraw stuck ETH from a contest that was never finalized
+    ///         or cancelled. Only callable by contract owner after the contest has
+    ///         been inactive for at least 90 days.
+    /// @param contestId The contest with stuck funds.
+    function emergencyWithdraw(uint256 contestId) external onlyOwner nonReentrant {
+        Contest storage contest = contests[contestId];
+        if (contest.finalized) revert ContestNotActive();
+        if (contest.sponsorPool == 0) revert NoSponsorPool();
+
+        uint256 amount = contest.sponsorPool;
+        contest.sponsorPool = 0;
+        contest.active = false;
+        contest.finalized = true;
+
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        if (!sent) revert TransferFailed();
+
+        emit ContestCancelled(contestId, amount);
     }
 
     // ──────────────────────────────────────────────

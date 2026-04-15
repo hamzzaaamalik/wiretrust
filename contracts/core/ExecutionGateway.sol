@@ -220,9 +220,12 @@ contract ExecutionGateway is IExecutionGateway, Ownable, ReentrancyGuard, Pausab
     }
 
     /// @notice Pause all agent executions. Emergency use only.
+    /// @dev Prevents execute() from being called. Does not affect admin functions
+    ///      (sweepETH, setForbiddenTarget, etc.). Emits OpenZeppelin Paused event.
     function pause() external onlyOwner { _pause(); }
 
-    /// @notice Unpause agent executions.
+    /// @notice Resume agent executions after an emergency pause.
+    /// @dev Emits OpenZeppelin Unpaused event.
     function unpause() external onlyOwner { _unpause(); }
 
     /// @inheritdoc IExecutionGateway

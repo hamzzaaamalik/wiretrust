@@ -174,14 +174,14 @@ export default function AgentProfile() {
     return (
       <div className="max-w-4xl mx-auto animate-fade-in">
         <div className="flex items-center gap-3 mb-6">
-          <Link to="/" className="text-zinc-500 hover:text-zinc-300 transition-colors text-sm">Dashboard</Link>
+          <Link to="/dashboard" className="text-zinc-500 hover:text-zinc-300 transition-colors text-sm">Dashboard</Link>
           <span className="text-zinc-700">/</span>
           <span className="text-zinc-400 text-sm">#{agentId}</span>
         </div>
         <div className="card-gradient text-center py-16">
           <h2 className="text-xl font-semibold text-red-400 mb-2">Agent Not Found</h2>
           <p className="text-sm text-zinc-500">Could not load agent #{agentId}. It may not exist or the server is unreachable.</p>
-          <Link to="/" className="btn-secondary text-sm inline-block mt-6">Back to Dashboard</Link>
+          <Link to="/dashboard" className="btn-secondary text-sm inline-block mt-6">Back to Dashboard</Link>
         </div>
       </div>
     );
@@ -194,7 +194,7 @@ export default function AgentProfile() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          to="/"
+          to="/dashboard"
           className="text-zinc-500 hover:text-zinc-300 transition-colors text-sm"
         >
           Dashboard
