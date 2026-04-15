@@ -49,12 +49,21 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 
 const RPC_URL = process.env.WIREFLUID_RPC || process.env.RPC_URL || "https://evm.wirefluid.com";
+const RPC_FALLBACK = process.env.WIREFLUID_RPC_FALLBACK || null;
 const WIREFLUID_CHAIN_ID = 92533;
 
-const provider = new ethers.JsonRpcProvider(RPC_URL, {
-  name: "wirefluid",
-  chainId: WIREFLUID_CHAIN_ID,
-});
+const networkConfig = { name: "wirefluid", chainId: WIREFLUID_CHAIN_ID };
+let provider;
+if (RPC_FALLBACK && RPC_FALLBACK !== RPC_URL) {
+  // Two different RPCs: use FallbackProvider (auto-switches on failure)
+  provider = new ethers.FallbackProvider([
+    { provider: new ethers.JsonRpcProvider(RPC_URL, networkConfig), priority: 1, stallTimeout: 5000 },
+    { provider: new ethers.JsonRpcProvider(RPC_FALLBACK, networkConfig), priority: 2, stallTimeout: 10000 },
+  ], { quorum: 1 });
+  console.log(`  RPC: primary ${RPC_URL} + fallback ${RPC_FALLBACK}`);
+} else {
+  provider = new ethers.JsonRpcProvider(RPC_URL, networkConfig);
+}
 
 const addressesPath = path.resolve(__dirname, "..", "deployed-addresses.json");
 const addresses = JSON.parse(fs.readFileSync(addressesPath, "utf-8"));

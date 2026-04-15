@@ -5,34 +5,55 @@ function decodeAction(bytes32) {
   try { return ethers.decodeBytes32String(bytes32); } catch { return bytes32; }
 }
 
+// Leaderboard cache — avoids N*3 RPC calls per request
+let leaderboardCache = null;
+let leaderboardCacheTime = 0;
+const LEADERBOARD_TTL = 60 * 1000; // 60 seconds
+
 // Agent leaderboard — top agents by reputation score
 router.get("/leaderboard", async (req, res) => {
   try {
+    const now = Date.now();
+
+    // Return cached data if fresh
+    if (leaderboardCache && (now - leaderboardCacheTime) < LEADERBOARD_TTL) {
+      const limit = Number(req.query.limit) || 10;
+      const offset = Number(req.query.offset) || 0;
+      return res.json({ agents: leaderboardCache.slice(offset, offset + limit), total: leaderboardCache.length, cached: true });
+    }
+
     const { contracts } = req.app.locals;
     const agentCount = await contracts.agentRegistry.agentCount();
     const total = Number(agentCount);
     const agents = [];
 
+    // Batch RPC calls with Promise.allSettled (parallel, not sequential)
+    const agentPromises = [];
     for (let i = 1; i <= total; i++) {
-      try {
-        const agent = await contracts.agentRegistry.getAgent(i);
-        if (!agent.active) continue;
-        const score = await contracts.reputationStore.getScore(i);
-        const badge = await contracts.reputationStore.getRiskBadge(i);
-        agents.push({
-          agentId: i,
-          name: agent.name,
-          owner: agent.owner,
-          botType: agent.botType,
-          score: Number(score),
-          badge: Number(badge),
-        });
-      } catch {
-        // skip agents that fail to load
-      }
+      agentPromises.push(
+        (async () => {
+          const [agent, score, badge] = await Promise.all([
+            contracts.agentRegistry.getAgent(i),
+            contracts.reputationStore.getScore(i),
+            contracts.reputationStore.getRiskBadge(i),
+          ]);
+          if (!agent.active) return null;
+          return { agentId: i, name: agent.name, owner: agent.owner, botType: agent.botType, score: Number(score), badge: Number(badge) };
+        })().catch(() => null)
+      );
+    }
+
+    const results = await Promise.allSettled(agentPromises);
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) agents.push(r.value);
     }
 
     agents.sort((a, b) => b.score - a.score);
+
+    // Cache the result
+    leaderboardCache = agents;
+    leaderboardCacheTime = now;
+
     const limit = Number(req.query.limit) || 10;
     const offset = Number(req.query.offset) || 0;
     res.json({ agents: agents.slice(offset, offset + limit), total: agents.length });

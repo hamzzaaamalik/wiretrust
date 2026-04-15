@@ -5,6 +5,25 @@
 
 ---
 
+## Deployed Contracts (WireFluid Chain 92533)
+
+| Contract | Address |
+|----------|---------|
+| FranchiseRegistry | `0x2e0aaEB43D3E0C331d057052cF768d51B26e2a0B` |
+| AgentRegistry | `0x3aD3Fd642e062fAf5948DF6DA0614E97824F6A38` |
+| ReputationStore | `0x6CB27a8594Ea5A01aB2F4CE5C4225D4BdF04BA20` |
+| PolicyEngine | `0xc5aA8cbB3c7D6AeFf7EaD29E96eD8c6Ea93d0149` |
+| ExecutionGateway | `0x620901f2AE286ff1c18dFc1751f2f4a5c0d1a2fB` |
+| MatchOracle | `0xdFF4e73cc0493EcDD2d18183223DBc4435D86404` |
+| PredictionModule | `0x8aFaf4d20F9707375A53D7EcED61129a6eE9480A` |
+| FantasyModule | `0xe9571F7C8b4a4672bE2C7416c24B21EA045C3A1f` |
+| WireTrustNFT | `0x1F0bFa8Eda8f1dfc09ea8fa8885a2F5d1Cc4bf43` |
+| Deployer / Treasury | `0x22EfFAe93649A93F7c6e01aBB6Ce2496BB2D4105` |
+
+**Network:** WireFluid EVM (Chain ID: 92533) | **Deployed:** 2026-03-21
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

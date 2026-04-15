@@ -20,4 +20,10 @@ module.exports = {
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
     },
   },
+  gasReporter: {
+    enabled: true,
+    currency: "USD",
+    noColors: false,
+    outputFile: process.env.GAS_REPORT ? "gas-report.txt" : undefined,
+  },
 };
